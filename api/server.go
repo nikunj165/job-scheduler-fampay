@@ -6,6 +6,8 @@ import (
 	"log"
 	"net/http"
 	"time"
+
+	"job-scheduler-fampay/repository"
 )
 
 // Server wraps an http.Server and exposes lifecycle helpers for the API service.
@@ -16,12 +18,12 @@ type Server struct {
 
 // NewServer constructs a Server configured to listen on the provided port with the
 // built-in router that exposes a health check endpoint.
-func NewServer(port string, logger *log.Logger) *Server {
+func NewServer(port string, logger *log.Logger, repo repository.JobRepository) *Server {
 	if logger == nil {
 		logger = log.Default()
 	}
 
-	handler := NewHandler(logger, nil)
+	handler := NewHandler(logger, repo)
 	router := NewRouter(handler, RouterOptions{})
 
 	return &Server{

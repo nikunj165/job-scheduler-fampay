@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"job-scheduler-fampay/api"
+	"job-scheduler-fampay/executor"
+	"job-scheduler-fampay/repository"
+	"job-scheduler-fampay/scheduler"
 )
 
 const (
@@ -60,7 +63,20 @@ func setupLogger(path string) (*os.File, *log.Logger, error) {
 }
 
 func run(ctx context.Context, cfg Config, logger *log.Logger) error {
-	server := api.NewServer(cfg.Port, logger)
+	repo := repository.NewMemoryRepository()
+
+	execCfg := executor.DefaultJobExecutorConfig()
+	execCfg.WorkerCount = cfg.WorkerCount
+	jobExecutor := executor.NewJobExecutor(repo, execCfg)
+	jobExecutor.Start(ctx)
+	defer jobExecutor.Stop()
+
+	schedCfg := scheduler.DefaultConfig()
+	jobScheduler := scheduler.New(repo, jobExecutor, logger, schedCfg)
+	jobScheduler.Start(ctx)
+	defer jobScheduler.Stop()
+
+	server := api.NewServer(cfg.Port, logger, repo)
 
 	errCh := make(chan error, 1)
 	go func() {

@@ -103,8 +103,23 @@ func (h *Handler) CreateJob(c *gin.Context) {
 // GetAllJobs retrieves all jobs with pagination
 func (h *Handler) GetAllJobs(c *gin.Context) {
 	// Parse pagination parameters
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	limitStr := c.DefaultQuery("limit", "20")
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid 'limit' parameter",
+		})
+		return
+	}
+
+	offsetStr := c.DefaultQuery("offset", "0")
+	offset, err := strconv.Atoi(offsetStr)
+	if err != nil || offset < 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "Invalid 'offset' parameter",
+		})
+		return
+	}
 
 	// Parse optional status filter
 	var statusFilter *models.JobStatus
@@ -231,11 +246,12 @@ func (h *Handler) GetJobExecutions(c *gin.Context) {
 		}
 	}
 
+	page := offset/limit + 1
 	c.JSON(http.StatusOK, models.ExecutionListResponse{
 		JobID:      jobID,
 		Executions: executionList,
 		Total:      total,
-		Page:       offset/limit + 1,
+		Page:       page,
 		PageSize:   limit,
 	})
 }

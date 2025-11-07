@@ -69,9 +69,7 @@ func (r *MemoryRepository) GetJob(ctx context.Context, jobID string) (*models.Jo
 		return nil, fmt.Errorf("job not found: %s", jobID)
 	}
 
-	// Return a copy to prevent external modifications
-	jobCopy := *job
-	return &jobCopy, nil
+	return cloneJob(job), nil
 }
 
 // GetAllJobs retrieves all jobs with pagination and optional status filter
@@ -82,8 +80,7 @@ func (r *MemoryRepository) GetAllJobs(ctx context.Context, limit, offset int, st
 	var filtered []*models.Job
 	for _, job := range r.jobs {
 		if status == nil || job.Status == *status {
-			jobCopy := *job
-			filtered = append(filtered, &jobCopy)
+			filtered = append(filtered, cloneJob(job))
 		}
 	}
 
@@ -101,6 +98,34 @@ func (r *MemoryRepository) GetAllJobs(ctx context.Context, limit, offset int, st
 	}
 
 	return filtered[start:end], total, nil
+}
+
+func cloneJob(job *models.Job) *models.Job {
+	if job == nil {
+		return nil
+	}
+
+	jobCopy := *job
+
+	if job.Metadata != nil {
+		metaCopy := make(map[string]interface{}, len(job.Metadata))
+		for k, v := range job.Metadata {
+			metaCopy[k] = v
+		}
+		jobCopy.Metadata = metaCopy
+	}
+
+	if job.NextRun != nil {
+		nextRunCopy := *job.NextRun
+		jobCopy.NextRun = &nextRunCopy
+	}
+
+	if job.LastExecuted != nil {
+		lastExecutedCopy := *job.LastExecuted
+		jobCopy.LastExecuted = &lastExecutedCopy
+	}
+
+	return &jobCopy
 }
 
 // UpdateJob updates a job's fields
