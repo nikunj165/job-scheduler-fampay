@@ -37,6 +37,9 @@ func parseFlags() Config {
 	if *workers <= 0 {
 		log.Fatalf("workers must be greater than zero; got %d", *workers)
 	}
+	if *logFile == "" {
+		log.Fatalf("log file name must not be empty")
+	}
 
 	return Config{
 		Port:        *port,
@@ -46,27 +49,18 @@ func parseFlags() Config {
 	}
 }
 
-func main() {
-	cfg := parseFlags()
-
-	if cfg.LogFile == "" {
-		log.Fatalf("log file name must not be empty")
-	}
-
-	logFile, err := os.OpenFile(cfg.LogFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+func setupLogger(path string) (*os.File, *log.Logger, error) {
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		log.Fatalf("failed to create or open log file: %v", err)
+		return nil, nil, fmt.Errorf("open log file: %w", err)
 	}
-	defer logFile.Close()
 
-	log.SetOutput(logFile)
-	log.SetFlags(log.LstdFlags | log.Lshortfile)
-	log.Printf("starting job scheduler on port %s with %d workers (log file: %s)", cfg.Port, cfg.WorkerCount, cfg.LogFile)
+	logger := log.New(file, "", log.LstdFlags|log.Lshortfile)
+	return file, logger, nil
+}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	server := api.NewServer(cfg.Port, log.Default())
+func run(ctx context.Context, cfg Config, logger *log.Logger) error {
+	server := api.NewServer(cfg.Port, logger)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -75,24 +69,42 @@ func main() {
 
 	select {
 	case <-ctx.Done():
-		log.Println("shutdown signal received")
+		logger.Println("shutdown signal received")
 	case err := <-errCh:
-		if err != nil {
-			log.Fatalf("API server error: %v", err)
-		}
-		return
+		return err
 	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Shutdown)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Fatalf("failed to shutdown API server: %v", err)
+		return fmt.Errorf("shutdown API server: %w", err)
 	}
 
 	if err := <-errCh; err != nil {
-		log.Fatalf("API server exited with error: %v", err)
+		return fmt.Errorf("API server exited with error: %w", err)
 	}
 
-	fmt.Println("job-scheduler-fampay service exited cleanly")
+	return nil
+}
+
+func main() {
+	cfg := parseFlags()
+
+	logFile, logger, err := setupLogger(cfg.LogFile)
+	if err != nil {
+		log.Fatalf("failed to configure logger: %v", err)
+	}
+	defer logFile.Close()
+
+	logger.Printf("starting job scheduler on port %s with %d workers (log file: %s)", cfg.Port, cfg.WorkerCount, cfg.LogFile)
+
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+
+	if err := run(ctx, cfg, logger); err != nil {
+		logger.Fatalf("service stopped with error: %v", err)
+	}
+
+	logger.Println("job-scheduler-fampay service exited cleanly")
 }
