@@ -8,8 +8,8 @@ import (
 type JobType string
 
 const (
-	AtLeastOnce JobType = "ATLEAST_ONCE"
-	AtMostOnce  JobType = "ATMOST_ONCE"
+	AtLeastOnce JobType = "ATLEAST_ONCE" // Retry on failure, may execute multiple times
+	AtMostOnce  JobType = "ATMOST_ONCE"  // Execute once, no retries on failure
 )
 
 // JobStatus represents the current status of a job
@@ -24,8 +24,8 @@ const (
 // Job represents a scheduled job
 type Job struct {
 	ID           string                 `json:"id"`
-	Schedule     string                 `json:"schedule"` // Extended CRON expression with seconds
-	API          string                 `json:"api"`      // Target API endpoint
+	Schedule     string                 `json:"schedule"` // 6-field CRON: "second minute hour day month weekday" e.g. "31 10-15 1 * * MON-FRI"
+	API          string                 `json:"api"`      // Target API endpoint to call
 	Type         JobType                `json:"type"`     // Execution guarantee type
 	Status       JobStatus              `json:"status"`
 	CreatedAt    time.Time              `json:"created_at"`
@@ -51,8 +51,15 @@ type JobExecution struct {
 }
 
 // JobRequest represents the request to create a new job
+// Example:
+//
+//	{
+//	  "schedule": "31 10-15 1 * * MON-FRI",  // At 31st second, minutes 10-15, 1 AM, Mon-Fri
+//	  "api": "https://localhost:4444/foo",
+//	  "type": "ATLEAST_ONCE"
+//	}
 type JobRequest struct {
-	Schedule string                 `json:"schedule" binding:"required"`
+	Schedule string                 `json:"schedule" binding:"required"` // 6-field CRON expression
 	API      string                 `json:"api" binding:"required,url"`
 	Type     JobType                `json:"type" binding:"required,oneof=ATLEAST_ONCE ATMOST_ONCE"`
 	Metadata map[string]interface{} `json:"metadata,omitempty"`
