@@ -30,6 +30,9 @@ func NewServer(port string, logger *log.Logger) *Server {
 			Addr:              fmt.Sprintf(":%s", port),
 			Handler:           router,
 			ReadHeaderTimeout: 5 * time.Second,
+			WriteTimeout:      10 * time.Second,
+			IdleTimeout:       120 * time.Second,
+			MaxHeaderBytes:    1 << 20, // 1 MB
 		},
 	}
 }

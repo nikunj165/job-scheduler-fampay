@@ -64,16 +64,21 @@ func run(ctx context.Context, cfg Config, logger *log.Logger) error {
 
 	errCh := make(chan error, 1)
 	go func() {
+		logger.Printf("HTTP server starting on port %s", cfg.Port)
 		errCh <- server.Start()
 	}()
 
 	select {
 	case <-ctx.Done():
-		logger.Println("shutdown signal received")
+		logger.Println("received shutdown signal (SIGINT/SIGTERM)")
 	case err := <-errCh:
-		return err
+		if err != nil {
+			return fmt.Errorf("server error: %w", err)
+		}
+		return nil
 	}
 
+	logger.Printf("initiating graceful shutdown (timeout: %v)", cfg.Shutdown)
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Shutdown)
 	defer cancel()
 
@@ -81,10 +86,12 @@ func run(ctx context.Context, cfg Config, logger *log.Logger) error {
 		return fmt.Errorf("shutdown API server: %w", err)
 	}
 
+	// Wait for server goroutine to finish
 	if err := <-errCh; err != nil {
 		return fmt.Errorf("API server exited with error: %w", err)
 	}
 
+	logger.Println("graceful shutdown completed successfully")
 	return nil
 }
 
@@ -97,7 +104,10 @@ func main() {
 	}
 	defer logFile.Close()
 
-	logger.Printf("starting job scheduler on port %s with %d workers (log file: %s)", cfg.Port, cfg.WorkerCount, cfg.LogFile)
+	logger.Printf("=== Job Scheduler Service Starting ===")
+	logger.Printf("Configuration: port=%s, workers=%d, logfile=%s", cfg.Port, cfg.WorkerCount, cfg.LogFile)
+	logger.Printf("Process ID: %d", os.Getpid())
+	logger.Printf("Registering signal handlers for graceful shutdown (SIGINT, SIGTERM)")
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
@@ -106,5 +116,5 @@ func main() {
 		logger.Fatalf("service stopped with error: %v", err)
 	}
 
-	logger.Println("job-scheduler-fampay service exited cleanly")
+	logger.Println("=== Job Scheduler Service Stopped Successfully ===")
 }
