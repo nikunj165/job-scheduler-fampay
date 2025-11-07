@@ -21,18 +21,14 @@ func NewServer(port string, logger *log.Logger) *Server {
 		logger = log.Default()
 	}
 
-	mux := http.NewServeMux()
-	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
+	handler := NewHandler(logger)
+	router := NewRouter(handler, RouterOptions{})
 
 	return &Server{
 		logger: logger,
 		http: &http.Server{
 			Addr:              fmt.Sprintf(":%s", port),
-			Handler:           mux,
+			Handler:           router,
 			ReadHeaderTimeout: 5 * time.Second,
 		},
 	}
