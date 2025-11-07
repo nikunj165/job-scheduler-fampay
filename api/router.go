@@ -1,6 +1,7 @@
 package api
 
 import (
+	"log"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,18 +31,44 @@ func NewRouter(handler *Handler, opts RouterOptions) *gin.Engine {
 		opts.RateLimitWindow = defaultRateLimitWindow
 	}
 
-	engine := gin.New()
+	// Create Gin router with default middleware
+	router := gin.New()
+	router.Use(gin.Recovery())
+	router.Use(gin.Logger())
 
-	if handler.logger != nil {
-		engine.Use(gin.LoggerWithWriter(handler.logger.Writer()))
-	} else {
-		engine.Use(gin.Logger())
+	// Apply custom middleware
+	router.Use(corsMiddleware())
+	router.Use(rateLimitMiddleware(handler.logger, opts.RateLimitRequests, opts.RateLimitWindow))
+
+	// Health check endpoint
+	router.GET("/healthz", handler.Health)
+
+	// API v1 routes
+	v1 := router.Group("/api/v1")
+	{
+		// Job management endpoints
+		jobs := v1.Group("/jobs")
+		{
+			jobs.POST("", handler.CreateJob)       // Create a new job
+			jobs.GET("", handler.GetAllJobs)       // Get all jobs (with pagination)
+			jobs.GET("/:id", handler.GetJob)       // Get a specific job
+			jobs.PUT("/:id", handler.UpdateJob)    // Update a job
+			jobs.DELETE("/:id", handler.DeleteJob) // Delete a job
+
+			// Job-specific operations
+			jobs.GET("/:id/executions", handler.GetJobExecutions) // Get execution history
+			jobs.GET("/:id/stats", handler.GetJobStats)           // Get job statistics
+		}
+
+		// Scheduler statistics
+		v1.GET("/scheduler/stats", handler.GetSchedulerStats)
 	}
-	engine.Use(gin.Recovery())
-	engine.Use(rateLimitMiddleware(handler.logger, opts.RateLimitRequests, opts.RateLimitWindow))
-	engine.Use(corsMiddleware())
 
-	engine.GET("/healthz", handler.Health)
+	return router
+}
 
-	return engine
+// SetupRoutes configures all routes for the API server
+func SetupRoutes(logger *log.Logger) *gin.Engine {
+	handler := NewHandler(logger, nil) // Repository will be initialized in handler
+	return NewRouter(handler, RouterOptions{})
 }

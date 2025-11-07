@@ -28,3 +28,8 @@ curl http://localhost:8080/healthz
 go build ./...
 ```
 
+## Run Tests
+```bash
+go test ./... -count=1
+```
+

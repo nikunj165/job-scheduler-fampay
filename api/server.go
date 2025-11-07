@@ -21,7 +21,7 @@ func NewServer(port string, logger *log.Logger) *Server {
 		logger = log.Default()
 	}
 
-	handler := NewHandler(logger)
+	handler := NewHandler(logger, nil)
 	router := NewRouter(handler, RouterOptions{})
 
 	return &Server{
