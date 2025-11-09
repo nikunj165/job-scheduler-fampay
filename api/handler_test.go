@@ -62,16 +62,16 @@ func (m *MockRepository) GetAllJobs(ctx context.Context, limit, offset int, stat
 	if m.err != nil {
 		return nil, 0, m.err
 	}
-	
+
 	var result []*models.Job
 	for _, job := range m.jobs {
 		if status == nil || job.Status == *status {
 			result = append(result, job)
 		}
 	}
-	
+
 	total := len(result)
-	
+
 	// Apply pagination
 	start := offset
 	if start > len(result) {
@@ -81,7 +81,7 @@ func (m *MockRepository) GetAllJobs(ctx context.Context, limit, offset int, stat
 	if end > len(result) {
 		end = len(result)
 	}
-	
+
 	return result[start:end], total, nil
 }
 
@@ -93,7 +93,7 @@ func (m *MockRepository) UpdateJob(ctx context.Context, jobID string, updates ma
 	if !exists {
 		return repository.ErrJobNotFound
 	}
-	
+
 	// Apply updates
 	if schedule, ok := updates["schedule"].(string); ok {
 		job.Schedule = schedule
@@ -104,7 +104,7 @@ func (m *MockRepository) UpdateJob(ctx context.Context, jobID string, updates ma
 	if status, ok := updates["status"].(models.JobStatus); ok {
 		job.Status = status
 	}
-	
+
 	job.UpdatedAt = time.Now()
 	return nil
 }
@@ -126,14 +126,14 @@ func (m *MockRepository) GetJobExecutions(ctx context.Context, jobID string, lim
 	if m.err != nil {
 		return nil, 0, m.err
 	}
-	
+
 	if _, exists := m.jobs[jobID]; !exists {
 		return nil, 0, repository.ErrJobNotFound
 	}
-	
+
 	execs := m.executions[jobID]
 	total := len(execs)
-	
+
 	// Apply pagination
 	start := offset
 	if start > len(execs) {
@@ -143,7 +143,7 @@ func (m *MockRepository) GetJobExecutions(ctx context.Context, jobID string, lim
 	if end > len(execs) {
 		end = len(execs)
 	}
-	
+
 	return execs[start:end], total, nil
 }
 
@@ -151,17 +151,17 @@ func (m *MockRepository) GetJobStats(ctx context.Context, jobID string) (*models
 	if m.err != nil {
 		return nil, m.err
 	}
-	
+
 	if _, exists := m.jobs[jobID]; !exists {
 		return nil, repository.ErrJobNotFound
 	}
-	
+
 	execs := m.executions[jobID]
 	stats := &models.JobStats{
 		JobID:           jobID,
 		TotalExecutions: int64(len(execs)),
 	}
-	
+
 	for _, exec := range execs {
 		if exec.Success {
 			stats.SuccessfulExecutions++
@@ -169,11 +169,11 @@ func (m *MockRepository) GetJobStats(ctx context.Context, jobID string) (*models
 			stats.FailedExecutions++
 		}
 	}
-	
+
 	if stats.TotalExecutions > 0 {
 		stats.UptimePercentage = float64(stats.SuccessfulExecutions) / float64(stats.TotalExecutions) * 100
 	}
-	
+
 	return stats, nil
 }
 
@@ -181,14 +181,14 @@ func (m *MockRepository) GetSchedulerStats(ctx context.Context, from, to time.Ti
 	if m.err != nil {
 		return nil, m.err
 	}
-	
+
 	activeJobs := 0
 	for _, job := range m.jobs {
 		if job.Status == models.StatusActive {
 			activeJobs++
 		}
 	}
-	
+
 	return map[string]interface{}{
 		"total_jobs":       len(m.jobs),
 		"active_jobs":      activeJobs,
@@ -199,11 +199,19 @@ func (m *MockRepository) GetSchedulerStats(ctx context.Context, from, to time.Ti
 }
 
 // Implement remaining interface methods
-func (m *MockRepository) CreateExecution(ctx context.Context, execution *models.JobExecution) error { return nil }
-func (m *MockRepository) UpdateExecution(ctx context.Context, executionID string, updates map[string]interface{}) error { return nil }
+func (m *MockRepository) CreateExecution(ctx context.Context, execution *models.JobExecution) error {
+	return nil
+}
+func (m *MockRepository) UpdateExecution(ctx context.Context, executionID string, updates map[string]interface{}) error {
+	return nil
+}
 func (m *MockRepository) GetActiveJobs(ctx context.Context) ([]*models.Job, error) { return nil, nil }
-func (m *MockRepository) UpdateJobNextRun(ctx context.Context, jobID string, nextRun time.Time) error { return nil }
-func (m *MockRepository) UpdateJobLastExecuted(ctx context.Context, jobID string, lastExecuted time.Time) error { return nil }
+func (m *MockRepository) UpdateJobNextRun(ctx context.Context, jobID string, nextRun time.Time) error {
+	return nil
+}
+func (m *MockRepository) UpdateJobLastExecuted(ctx context.Context, jobID string, lastExecuted time.Time) error {
+	return nil
+}
 
 // Test helpers
 func setupTestRouter(repo repository.JobRepository) *gin.Engine {
@@ -225,22 +233,22 @@ func setupTestRouter(repo repository.JobRepository) *gin.Engine {
 
 func TestHealth(t *testing.T) {
 	router := setupTestRouter(NewMockRepository())
-	
+
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/healthz", nil)
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	var response map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &response)
-	
+
 	if response["status"] != "ok" {
 		t.Errorf("Expected status 'ok', got %v", response["status"])
 	}
-	
+
 	if _, ok := response["timestamp"]; !ok {
 		t.Error("Expected timestamp in response")
 	}
@@ -249,30 +257,30 @@ func TestHealth(t *testing.T) {
 func TestCreateJob_Success(t *testing.T) {
 	repo := NewMockRepository()
 	router := setupTestRouter(repo)
-	
+
 	payload := models.JobRequest{
 		Schedule: "*/5 * * * * *",
 		API:      "https://example.com/webhook",
 		Type:     models.AtLeastOnce,
 	}
-	
+
 	body, _ := json.Marshal(payload)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/v1/jobs", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusCreated {
 		t.Errorf("Expected status 201, got %d", w.Code)
 	}
-	
+
 	var response models.JobResponse
 	json.Unmarshal(w.Body.Bytes(), &response)
-	
+
 	if response.JobID == "" {
 		t.Error("Expected job ID in response")
 	}
-	
+
 	if response.Message != "Job created successfully" {
 		t.Errorf("Unexpected message: %s", response.Message)
 	}
@@ -281,26 +289,26 @@ func TestCreateJob_Success(t *testing.T) {
 func TestCreateJob_InvalidCron(t *testing.T) {
 	repo := NewMockRepository()
 	router := setupTestRouter(repo)
-	
+
 	payload := models.JobRequest{
 		Schedule: "invalid-cron",
 		API:      "https://example.com/webhook",
 		Type:     models.AtLeastOnce,
 	}
-	
+
 	body, _ := json.Marshal(payload)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/v1/jobs", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", w.Code)
 	}
-	
+
 	var response map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &response)
-	
+
 	if response["error"] != "Invalid CRON expression" {
 		t.Errorf("Expected CRON error, got %v", response["error"])
 	}
@@ -309,19 +317,19 @@ func TestCreateJob_InvalidCron(t *testing.T) {
 func TestCreateJob_MissingFields(t *testing.T) {
 	repo := NewMockRepository()
 	router := setupTestRouter(repo)
-	
+
 	// Missing API field
 	payload := map[string]interface{}{
 		"schedule": "*/5 * * * * *",
 		"type":     "ATLEAST_ONCE",
 	}
-	
+
 	body, _ := json.Marshal(payload)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("POST", "/api/v1/jobs", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("Expected status 400, got %d", w.Code)
 	}
@@ -329,7 +337,7 @@ func TestCreateJob_MissingFields(t *testing.T) {
 
 func TestGetJob_Success(t *testing.T) {
 	repo := NewMockRepository()
-	
+
 	// Add a test job
 	job := &models.Job{
 		ID:       "test-job-1",
@@ -339,20 +347,20 @@ func TestGetJob_Success(t *testing.T) {
 		Status:   models.StatusActive,
 	}
 	repo.jobs[job.ID] = job
-	
+
 	router := setupTestRouter(repo)
-	
+
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/jobs/test-job-1", nil)
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	var response models.Job
 	json.Unmarshal(w.Body.Bytes(), &response)
-	
+
 	if response.ID != job.ID {
 		t.Errorf("Expected job ID %s, got %s", job.ID, response.ID)
 	}
@@ -361,11 +369,11 @@ func TestGetJob_Success(t *testing.T) {
 func TestGetJob_NotFound(t *testing.T) {
 	repo := NewMockRepository()
 	router := setupTestRouter(repo)
-	
+
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/jobs/non-existent", nil)
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusNotFound {
 		t.Errorf("Expected status 404, got %d", w.Code)
 	}
@@ -373,7 +381,7 @@ func TestGetJob_NotFound(t *testing.T) {
 
 func TestGetAllJobs(t *testing.T) {
 	repo := NewMockRepository()
-	
+
 	// Add test jobs
 	for i := 0; i < 3; i++ {
 		job := &models.Job{
@@ -385,20 +393,20 @@ func TestGetAllJobs(t *testing.T) {
 		}
 		repo.jobs[job.ID] = job
 	}
-	
+
 	router := setupTestRouter(repo)
-	
+
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/jobs", nil)
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	var response map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &response)
-	
+
 	if int(response["total"].(float64)) != 3 {
 		t.Errorf("Expected 3 jobs, got %v", response["total"])
 	}
@@ -406,7 +414,7 @@ func TestGetAllJobs(t *testing.T) {
 
 func TestUpdateJob_Success(t *testing.T) {
 	repo := NewMockRepository()
-	
+
 	// Add a test job
 	job := &models.Job{
 		ID:       "test-job-1",
@@ -416,23 +424,23 @@ func TestUpdateJob_Success(t *testing.T) {
 		Status:   models.StatusActive,
 	}
 	repo.jobs[job.ID] = job
-	
+
 	router := setupTestRouter(repo)
-	
+
 	updates := map[string]interface{}{
 		"schedule": "*/10 * * * * *",
 	}
-	
+
 	body, _ := json.Marshal(updates)
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("PATCH", "/api/v1/jobs/test-job-1", bytes.NewBuffer(body))
 	req.Header.Set("Content-Type", "application/json")
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	// Verify job was updated
 	if repo.jobs[job.ID].Schedule != "*/10 * * * * *" {
 		t.Error("Job schedule was not updated")
@@ -441,7 +449,7 @@ func TestUpdateJob_Success(t *testing.T) {
 
 func TestDeleteJob_Success(t *testing.T) {
 	repo := NewMockRepository()
-	
+
 	// Add a test job
 	job := &models.Job{
 		ID:       "test-job-1",
@@ -451,17 +459,17 @@ func TestDeleteJob_Success(t *testing.T) {
 		Status:   models.StatusActive,
 	}
 	repo.jobs[job.ID] = job
-	
+
 	router := setupTestRouter(repo)
-	
+
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("DELETE", "/api/v1/jobs/test-job-1", nil)
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	// Verify job was soft deleted
 	if repo.jobs[job.ID].Status != models.StatusDeleted {
 		t.Error("Job was not marked as deleted")
@@ -470,7 +478,7 @@ func TestDeleteJob_Success(t *testing.T) {
 
 func TestGetJobExecutions(t *testing.T) {
 	repo := NewMockRepository()
-	
+
 	// Add a test job
 	job := &models.Job{
 		ID:       "test-job-1",
@@ -480,7 +488,7 @@ func TestGetJobExecutions(t *testing.T) {
 		Status:   models.StatusActive,
 	}
 	repo.jobs[job.ID] = job
-	
+
 	// Add executions
 	now := time.Now()
 	repo.executions[job.ID] = []*models.JobExecution{
@@ -492,24 +500,24 @@ func TestGetJobExecutions(t *testing.T) {
 			Success:      true,
 		},
 	}
-	
+
 	router := setupTestRouter(repo)
-	
+
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/jobs/test-job-1/executions", nil)
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	var response map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &response)
-	
+
 	if response["job_id"] != job.ID {
 		t.Errorf("Expected job_id %s, got %v", job.ID, response["job_id"])
 	}
-	
+
 	if int(response["count"].(float64)) != 1 {
 		t.Errorf("Expected 1 execution, got %v", response["count"])
 	}
@@ -517,7 +525,7 @@ func TestGetJobExecutions(t *testing.T) {
 
 func TestGetJobStats(t *testing.T) {
 	repo := NewMockRepository()
-	
+
 	// Add a test job
 	job := &models.Job{
 		ID:       "test-job-1",
@@ -527,30 +535,30 @@ func TestGetJobStats(t *testing.T) {
 		Status:   models.StatusActive,
 	}
 	repo.jobs[job.ID] = job
-	
+
 	// Add executions
 	repo.executions[job.ID] = []*models.JobExecution{
 		{JobID: job.ID, Success: true},
 		{JobID: job.ID, Success: false},
 	}
-	
+
 	router := setupTestRouter(repo)
-	
+
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/jobs/test-job-1/stats", nil)
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	var stats models.JobStats
 	json.Unmarshal(w.Body.Bytes(), &stats)
-	
+
 	if stats.TotalExecutions != 2 {
 		t.Errorf("Expected 2 total executions, got %d", stats.TotalExecutions)
 	}
-	
+
 	if stats.SuccessfulExecutions != 1 {
 		t.Errorf("Expected 1 successful execution, got %d", stats.SuccessfulExecutions)
 	}
@@ -558,7 +566,7 @@ func TestGetJobStats(t *testing.T) {
 
 func TestGetSchedulerStats(t *testing.T) {
 	repo := NewMockRepository()
-	
+
 	// Add test jobs
 	job := &models.Job{
 		ID:       "test-job-1",
@@ -568,24 +576,24 @@ func TestGetSchedulerStats(t *testing.T) {
 		Status:   models.StatusActive,
 	}
 	repo.jobs[job.ID] = job
-	
+
 	router := setupTestRouter(repo)
-	
+
 	w := httptest.NewRecorder()
 	req, _ := http.NewRequest("GET", "/api/v1/stats", nil)
 	router.ServeHTTP(w, req)
-	
+
 	if w.Code != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", w.Code)
 	}
-	
+
 	var response map[string]interface{}
 	json.Unmarshal(w.Body.Bytes(), &response)
-	
+
 	if int(response["total_jobs"].(float64)) != 1 {
 		t.Errorf("Expected 1 total job, got %v", response["total_jobs"])
 	}
-	
+
 	if int(response["active_jobs"].(float64)) != 1 {
 		t.Errorf("Expected 1 active job, got %v", response["active_jobs"])
 	}

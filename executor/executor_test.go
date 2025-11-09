@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -104,14 +105,17 @@ func (m *MockRepository) UpdateJobLastExecuted(ctx context.Context, jobID string
 }
 
 func TestJobExecutorExecuteJob_Success(t *testing.T) {
-	// Setup a test HTTP server
+	// Setup a test HTTP server with thread-safe variables
+	var mu sync.Mutex
 	called := false
 	var receivedMethod string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		called = true
 		receivedMethod = r.Method
-		w.WriteHeader(http.StatusOK)
+		mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"success":true}`))
 	}))
 	defer server.Close()
@@ -146,18 +150,22 @@ func TestJobExecutorExecuteJob_Success(t *testing.T) {
 	// Wait for execution to complete
 	time.Sleep(100 * time.Millisecond)
 
-	// Verify HTTP endpoint was called
+	// Verify HTTP endpoint was called (with lock)
+	mu.Lock()
 	if !called {
 		t.Error("Expected HTTP endpoint to be called")
 	}
 	if receivedMethod != "POST" {
 		t.Errorf("Expected POST request, got %s", receivedMethod)
 	}
+	mu.Unlock()
 
-	// Verify execution was recorded
+	// Verify execution was recorded (with lock)
+	mockRepo.mu.Lock()
 	if !mockRepo.createExecutionCalled {
 		t.Error("Expected CreateExecution to be called")
 	}
+	mockRepo.mu.Unlock()
 
 	executions, _, _ := mockRepo.GetJobExecutions(ctx, job.ID, 10, 0)
 	if len(executions) != 1 {
@@ -178,13 +186,15 @@ func TestJobExecutorExecuteJob_Success(t *testing.T) {
 		t.Errorf("Expected response body to be captured, got %s", exec.ResponseBody)
 	}
 
-	// Verify last executed was updated
+	// Verify last executed was updated (with lock)
+	mockRepo.mu.Lock()
 	if !mockRepo.updateLastExecutedCalled {
 		t.Error("Expected UpdateJobLastExecuted to be called")
 	}
 	if mockRepo.lastExecutedJobID != job.ID {
 		t.Errorf("Expected last executed job ID %s, got %s", job.ID, mockRepo.lastExecutedJobID)
 	}
+	mockRepo.mu.Unlock()
 }
 
 func TestJobExecutorExecuteJob_Failure(t *testing.T) {
@@ -299,11 +309,11 @@ func TestJobExecutorExecuteJob_Timeout(t *testing.T) {
 func TestJobExecutorWorkerPool(t *testing.T) {
 	// Test that multiple workers can process jobs concurrently
 	jobCount := 10
-	processedJobs := make(chan string, jobCount)
+	var processedCount int32
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		jobID := r.Header.Get("X-Job-ID")
-		processedJobs <- jobID
+		// Increment counter atomically
+		atomic.AddInt32(&processedCount, 1)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -333,22 +343,20 @@ func TestJobExecutorWorkerPool(t *testing.T) {
 		executor.Submit(job)
 	}
 
-	// Wait for all jobs to be processed
-	timeout := time.After(2 * time.Second)
-	received := 0
-
-	for received < jobCount {
-		select {
-		case <-processedJobs:
-			received++
-		case <-timeout:
-			t.Fatalf("Timeout waiting for jobs to be processed. Got %d/%d", received, jobCount)
+	// Wait for all jobs to be processed with polling
+	maxWait := time.Now().Add(2 * time.Second)
+	for time.Now().Before(maxWait) {
+		count := atomic.LoadInt32(&processedCount)
+		if count >= int32(jobCount) {
+			break
 		}
+		time.Sleep(10 * time.Millisecond)
 	}
 
 	// Verify all jobs were executed
-	if received != jobCount {
-		t.Errorf("Expected %d jobs to be processed, got %d", jobCount, received)
+	finalCount := atomic.LoadInt32(&processedCount)
+	if finalCount != int32(jobCount) {
+		t.Errorf("Expected %d jobs to be processed, got %d", jobCount, finalCount)
 	}
 }
 

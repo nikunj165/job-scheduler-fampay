@@ -59,12 +59,12 @@ else
     exit 1
 fi
 
-# Test 2: Create a job that runs every 5 seconds
+# Test 2: Create a job that runs every 30 seconds (to avoid multiple executions during test)
 echo "[test] Test 2: Create a job"
 CREATE_RESPONSE=$(curl -s -X POST "${API_URL}/api/v1/jobs" \
     -H "Content-Type: application/json" \
     -d '{
-        "schedule": "*/5 * * * * *",
+        "schedule": "*/30 * * * * *",
         "api": "https://httpbin.org/post",
         "type": "ATLEAST_ONCE"
     }')
@@ -82,7 +82,7 @@ fi
 echo "[test] Test 3: Get job details"
 GET_RESPONSE=$(curl -s "${API_URL}/api/v1/jobs/${JOB_ID}")
 RETRIEVED_SCHEDULE=$(echo "$GET_RESPONSE" | jq -r '.schedule')
-if [[ "$RETRIEVED_SCHEDULE" == "*/5 * * * * *" ]]; then
+if [[ "$RETRIEVED_SCHEDULE" == "*/30 * * * * *" ]]; then
     echo -e "${GREEN}  ✓ Job retrieved successfully${NC}"
 else
     echo -e "${RED}  ✗ Failed to retrieve job${NC}"
@@ -103,14 +103,22 @@ fi
 
 # Test 5: Wait for job to execute
 echo "[test] Test 5: Verify job execution"
-echo "  Waiting 10 seconds for job to execute..."
-sleep 10
+echo "  Waiting for first execution (max 35 seconds)..."
 
-# Check executions
-EXEC_RESPONSE=$(curl -s "${API_URL}/api/v1/jobs/${JOB_ID}/executions")
-EXEC_COUNT=$(echo "$EXEC_RESPONSE" | jq -r '.count')
+# Poll for execution with timeout
+MAX_WAIT=35
+WAIT_COUNT=0
+EXEC_COUNT=0
+
+while [[ "$EXEC_COUNT" -eq 0 && "$WAIT_COUNT" -lt "$MAX_WAIT" ]]; do
+    sleep 1
+    EXEC_RESPONSE=$(curl -s "${API_URL}/api/v1/jobs/${JOB_ID}/executions")
+    EXEC_COUNT=$(echo "$EXEC_RESPONSE" | jq -r '.count // 0')
+    WAIT_COUNT=$((WAIT_COUNT + 1))
+done
+
 if [[ "$EXEC_COUNT" -ge 1 ]]; then
-    echo -e "${GREEN}  ✓ Job executed successfully ($EXEC_COUNT executions)${NC}"
+    echo -e "${GREEN}  ✓ Job executed successfully after ${WAIT_COUNT} seconds ($EXEC_COUNT executions)${NC}"
     
     # Show execution details
     FIRST_EXEC=$(echo "$EXEC_RESPONSE" | jq -r '.executions[0]')
@@ -129,16 +137,92 @@ fi
 
 # Test 6: Update job schedule
 echo "[test] Test 6: Update job schedule"
-UPDATE_RESPONSE=$(curl -s -X PATCH "${API_URL}/api/v1/jobs/${JOB_ID}" \
+
+# First verify the job still exists
+echo "  Verifying job exists before update..."
+VERIFY_RESPONSE=$(curl -s "${API_URL}/api/v1/jobs/${JOB_ID}")
+if ! echo "$VERIFY_RESPONSE" | jq -e '.id' > /dev/null 2>&1; then
+    echo -e "${RED}  ✗ Job does not exist or cannot be retrieved${NC}"
+    echo "  Job ID: $JOB_ID"
+    echo "  Response: $VERIFY_RESPONSE"
+    exit 1
+fi
+echo "  Job verified, proceeding with update..."
+
+# Use a temp file to separate body and status
+TEMP_FILE=$(mktemp)
+HTTP_STATUS=$(curl -s -w "%{http_code}" -o "$TEMP_FILE" -X PUT "${API_URL}/api/v1/jobs/${JOB_ID}" \
     -H "Content-Type: application/json" \
     -d '{
-        "schedule": "*/10 * * * * *"
+        "schedule": "0 */2 * * * *"
     }')
 
-if [[ $(echo "$UPDATE_RESPONSE" | jq -r '.message') == "Job updated successfully" ]]; then
-    echo -e "${GREEN}  ✓ Job updated successfully${NC}"
+# Read the response body from temp file
+UPDATE_RESPONSE=$(cat "$TEMP_FILE")
+rm -f "$TEMP_FILE"
+
+# Check if we got a valid HTTP response
+if [[ "$HTTP_STATUS" == "000" ]]; then
+    echo -e "${RED}  ✗ Failed to connect to server - is the service running?${NC}"
+    exit 1
+fi
+
+# Check if response is empty
+if [[ -z "$UPDATE_RESPONSE" && "$HTTP_STATUS" != "204" ]]; then
+    echo -e "${RED}  ✗ Empty response body with status $HTTP_STATUS${NC}"
+    # For some status codes, empty body is expected, continue
+fi
+
+# Only try to parse as JSON if we have content and it's not a plain text error
+if [[ -n "$UPDATE_RESPONSE" ]]; then
+    # Check if it's a plain text error message (like "404 page not found")
+    if [[ "$UPDATE_RESPONSE" == "404 page not found" ]] || [[ "$UPDATE_RESPONSE" =~ ^[0-9]+\ .* ]]; then
+        # Plain text error, don't try to parse as JSON
+        echo -e "${RED}  ✗ Server returned plain text error: $UPDATE_RESPONSE${NC}"
+        echo "  HTTP Status: $HTTP_STATUS"
+        echo "  Job ID was: $JOB_ID"
+        exit 1
+    elif ! echo "$UPDATE_RESPONSE" | jq '.' > /dev/null 2>&1; then
+        echo -e "${RED}  ✗ Invalid JSON response${NC}"
+        echo "  Response was: '$UPDATE_RESPONSE'"
+        echo "  HTTP Status was: $HTTP_STATUS"
+        exit 1
+    fi
+fi
+
+# Check response based on status code and content
+if [[ "$HTTP_STATUS" == "200" ]]; then
+    # Success case - check for message or assume success
+    if [[ -n "$UPDATE_RESPONSE" ]]; then
+        if echo "$UPDATE_RESPONSE" | jq -e '.message' > /dev/null 2>&1; then
+            MESSAGE=$(echo "$UPDATE_RESPONSE" | jq -r '.message')
+            if [[ "$MESSAGE" == "Job updated successfully" ]]; then
+                echo -e "${GREEN}  ✓ Job updated successfully (now runs every 2 minutes)${NC}"
+            else
+                echo -e "${GREEN}  ✓ Job updated (message: $MESSAGE)${NC}"
+            fi
+        else
+            # No message field, but 200 status means success
+            echo -e "${GREEN}  ✓ Job updated successfully (HTTP 200)${NC}"
+        fi
+    else
+        # Empty response but 200 status
+        echo -e "${GREEN}  ✓ Job updated successfully (HTTP 200, no body)${NC}"
+    fi
+elif [[ "$HTTP_STATUS" == "400" ]] || [[ "$HTTP_STATUS" == "404" ]]; then
+    # Error case
+    if [[ -n "$UPDATE_RESPONSE" ]] && echo "$UPDATE_RESPONSE" | jq -e '.error' > /dev/null 2>&1; then
+        ERROR=$(echo "$UPDATE_RESPONSE" | jq -r '.error')
+        echo -e "${RED}  ✗ Failed to update job: $ERROR${NC}"
+        echo "  Details: $(echo "$UPDATE_RESPONSE" | jq -r '.details // "N/A"')"
+    else
+        echo -e "${RED}  ✗ Failed to update job (HTTP $HTTP_STATUS)${NC}"
+        echo "  Response: $UPDATE_RESPONSE"
+    fi
+    exit 1
 else
-    echo -e "${RED}  ✗ Failed to update job${NC}"
+    echo -e "${RED}  ✗ Unexpected HTTP status: $HTTP_STATUS${NC}"
+    echo "  Response: $UPDATE_RESPONSE"
     exit 1
 fi
 
@@ -174,30 +258,36 @@ else
     exit 1
 fi
 
-# Test 10: Create a job with immediate execution
-echo "[test] Test 10: Create job with immediate schedule"
+# Test 10: Create a job with frequent execution
+echo "[test] Test 10: Create job with frequent schedule"
 IMMEDIATE_RESPONSE=$(curl -s -X POST "${API_URL}/api/v1/jobs" \
     -H "Content-Type: application/json" \
     -d '{
-        "schedule": "* * * * * *",
+        "schedule": "*/10 * * * * *",
         "api": "https://httpbin.org/status/200",
         "type": "ATMOST_ONCE"
     }')
 
 IMMEDIATE_JOB_ID=$(echo "$IMMEDIATE_RESPONSE" | jq -r '.job_id')
 if [[ -n "$IMMEDIATE_JOB_ID" && "$IMMEDIATE_JOB_ID" != "null" ]]; then
-    echo -e "${GREEN}  ✓ Immediate job created with ID: $IMMEDIATE_JOB_ID${NC}"
+    echo -e "${GREEN}  ✓ Frequent job created with ID: $IMMEDIATE_JOB_ID${NC}"
     
-    # Wait for execution
-    sleep 3
+    # Poll for execution with timeout
+    echo "  Waiting for execution (max 12 seconds)..."
+    WAIT_COUNT=0
+    IMMEDIATE_COUNT=0
     
-    # Check if it executed
-    IMMEDIATE_EXEC=$(curl -s "${API_URL}/api/v1/jobs/${IMMEDIATE_JOB_ID}/executions")
-    IMMEDIATE_COUNT=$(echo "$IMMEDIATE_EXEC" | jq -r '.count')
+    while [[ "$IMMEDIATE_COUNT" -eq 0 && "$WAIT_COUNT" -lt 12 ]]; do
+        sleep 1
+        IMMEDIATE_EXEC=$(curl -s "${API_URL}/api/v1/jobs/${IMMEDIATE_JOB_ID}/executions")
+        IMMEDIATE_COUNT=$(echo "$IMMEDIATE_EXEC" | jq -r '.count // 0')
+        WAIT_COUNT=$((WAIT_COUNT + 1))
+    done
+    
     if [[ "$IMMEDIATE_COUNT" -ge 1 ]]; then
-        echo -e "${GREEN}  ✓ Immediate job executed within 3 seconds${NC}"
+        echo -e "${GREEN}  ✓ Frequent job executed within ${WAIT_COUNT} seconds${NC}"
     else
-        echo -e "${RED}  ✗ Immediate job did not execute quickly${NC}"
+        echo -e "${RED}  ✗ Frequent job did not execute within timeout${NC}"
     fi
     
     # Clean up

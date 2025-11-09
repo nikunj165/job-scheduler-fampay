@@ -126,7 +126,7 @@ func TestSchedulerDispatchDueJobs(t *testing.T) {
 	pastTime := now.Add(-1 * time.Second)
 	dueJob := &models.Job{
 		ID:       "job-1",
-		Schedule: "* * * * * *", // Every second
+		Schedule: "0 */5 * * * *", // Every 5 minutes at second 0 (won't run again during test)
 		API:      "http://example.com/webhook",
 		Status:   models.StatusActive,
 		NextRun:  &pastTime,
@@ -147,7 +147,7 @@ func TestSchedulerDispatchDueJobs(t *testing.T) {
 	// Add an inactive job that should not be dispatched
 	inactiveJob := &models.Job{
 		ID:       "job-3",
-		Schedule: "* * * * * *",
+		Schedule: "0 */5 * * * *", // Every 5 minutes
 		API:      "http://example.com/webhook3",
 		Status:   models.StatusInactive,
 		NextRun:  &pastTime,
@@ -213,7 +213,7 @@ func TestSchedulerMultipleDispatch(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		job := &models.Job{
 			ID:       string(rune('a' + i)),
-			Schedule: "* * * * * *",
+			Schedule: "0 */10 * * * *", // Every 10 minutes (won't run again during test)
 			API:      "http://example.com/webhook",
 			Status:   models.StatusActive,
 			NextRun:  &pastTime,
@@ -300,7 +300,7 @@ func TestSchedulerNilNextRun(t *testing.T) {
 	// Add job with nil NextRun (newly created job)
 	jobWithoutNextRun := &models.Job{
 		ID:       "job-no-next",
-		Schedule: "* * * * * *",
+		Schedule: "0 */10 * * * *", // Every 10 minutes
 		API:      "http://example.com/webhook",
 		Status:   models.StatusActive,
 		NextRun:  nil, // No next run set yet
@@ -330,7 +330,7 @@ func TestSchedulerImmediateDispatch(t *testing.T) {
 	pastTime := now.Add(-1 * time.Minute)
 	dueJob := &models.Job{
 		ID:       "immediate-job",
-		Schedule: "* * * * * *",
+		Schedule: "0 */10 * * * *", // Every 10 minutes (won't run again during test)
 		API:      "http://example.com/webhook",
 		Status:   models.StatusActive,
 		NextRun:  &pastTime,
