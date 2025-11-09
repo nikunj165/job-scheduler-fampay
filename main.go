@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 
@@ -28,12 +29,14 @@ type Config struct {
 	WorkerCount int
 	LogFile     string
 	Shutdown    time.Duration
+	Optimized   bool
 }
 
 func parseFlags() Config {
 	port := flag.String("port", defaultPort, "HTTP port to listen on")
 	workers := flag.Int("workers", defaultWorkerCount, "Number of worker goroutines")
 	logFile := flag.String("logfile", defaultLogFile, "Path to log file")
+	optimized := flag.Bool("optimized", false, "Use optimized executor for high throughput (1000+ jobs/sec)")
 
 	flag.Parse()
 
@@ -49,6 +52,7 @@ func parseFlags() Config {
 		WorkerCount: *workers,
 		LogFile:     *logFile,
 		Shutdown:    defaultShutdownTimeout,
+		Optimized:   *optimized,
 	}
 }
 
@@ -65,11 +69,44 @@ func setupLogger(path string) (*os.File, *log.Logger, error) {
 func run(ctx context.Context, cfg Config, logger *log.Logger) error {
 	repo := repository.NewMemoryRepository()
 
-	execCfg := executor.DefaultJobExecutorConfig()
-	execCfg.WorkerCount = cfg.WorkerCount
-	jobExecutor := executor.NewJobExecutor(repo, execCfg)
-	jobExecutor.Start(ctx)
-	defer jobExecutor.Stop()
+	// Choose executor based on optimization flag
+	var jobExecutor scheduler.Executor
+
+	if cfg.Optimized {
+		logger.Printf("Using OPTIMIZED executor for high throughput")
+		optCfg := executor.DefaultOptimizedConfig()
+		optCfg.WorkerCount = cfg.WorkerCount
+
+		// Allow configuring timeout via environment variable
+		if timeoutStr := os.Getenv("JOB_TIMEOUT_SECONDS"); timeoutStr != "" {
+			if timeout, err := strconv.Atoi(timeoutStr); err == nil && timeout > 0 {
+				optCfg.RequestTimeout = time.Duration(timeout) * time.Second
+				logger.Printf("Using custom job timeout: %v seconds", timeout)
+			}
+		}
+
+		optimizedExec := executor.NewOptimizedJobExecutor(repo, optCfg)
+		optimizedExec.Start(ctx)
+		defer optimizedExec.Stop()
+		jobExecutor = optimizedExec
+	} else {
+		logger.Printf("Using standard executor")
+		execCfg := executor.DefaultJobExecutorConfig()
+		execCfg.WorkerCount = cfg.WorkerCount
+
+		// Allow configuring timeout via environment variable
+		if timeoutStr := os.Getenv("JOB_TIMEOUT_SECONDS"); timeoutStr != "" {
+			if timeout, err := strconv.Atoi(timeoutStr); err == nil && timeout > 0 {
+				execCfg.RequestTimeout = time.Duration(timeout) * time.Second
+				logger.Printf("Using custom job timeout: %v seconds", timeout)
+			}
+		}
+
+		standardExec := executor.NewJobExecutor(repo, execCfg)
+		standardExec.Start(ctx)
+		defer standardExec.Stop()
+		jobExecutor = standardExec
+	}
 
 	schedCfg := scheduler.DefaultConfig()
 	jobScheduler := scheduler.New(repo, jobExecutor, logger, schedCfg)
@@ -121,7 +158,8 @@ func main() {
 	defer logFile.Close()
 
 	logger.Printf("=== Job Scheduler Service Starting ===")
-	logger.Printf("Configuration: port=%s, workers=%d, logfile=%s", cfg.Port, cfg.WorkerCount, cfg.LogFile)
+	logger.Printf("Configuration: port=%s, workers=%d, logfile=%s, optimized=%v",
+		cfg.Port, cfg.WorkerCount, cfg.LogFile, cfg.Optimized)
 	logger.Printf("Process ID: %d", os.Getpid())
 	logger.Printf("Registering signal handlers for graceful shutdown (SIGINT, SIGTERM)")
 

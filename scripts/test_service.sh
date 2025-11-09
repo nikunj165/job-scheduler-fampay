@@ -20,5 +20,12 @@ go vet ./...
 echo "[test] go test"
 go test -race -count=1 ./...
 
+# Check if integration tests should run
+if [[ "${RUN_INTEGRATION:-false}" == "true" ]]; then
+    echo ""
+    echo "[test] Running integration tests..."
+    ./scripts/integration_test.sh
+fi
+
 echo "[test] completed successfully"
 

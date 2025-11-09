@@ -23,7 +23,7 @@ type JobExecutorConfig struct {
 func DefaultJobExecutorConfig() JobExecutorConfig {
 	return JobExecutorConfig{
 		WorkerCount:    4,
-		RequestTimeout: 30 * time.Second,
+		RequestTimeout: 120 * time.Second, // Increased to handle APIs that take up to 90 seconds
 		MaxQueueSize:   100,
 	}
 }
