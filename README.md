@@ -23,6 +23,25 @@ A high-performance, distributed job scheduling service built in Go that executes
 
 ## 🛠️ Installation
 
+### Using Docker (Recommended)
+
+```bash
+# Clone the repository
+git clone https://github.com/nikunj165/job-scheduler-fampay.git
+cd job-scheduler-fampay
+
+# Run with docker-compose (standard executor)
+docker-compose up -d scheduler
+
+# Or run optimized executor
+docker-compose --profile optimized up -d scheduler-optimized
+
+# View logs
+docker-compose logs -f scheduler
+```
+
+### Using Go
+
 ```bash
 # Clone the repository
 git clone https://github.com/nikunj165/job-scheduler-fampay.git
@@ -37,7 +56,27 @@ go build -o job-scheduler-fampay
 
 ## 🏃 Running the Service
 
-### Quick Start
+### Using Docker
+
+```bash
+# Standard executor (default)
+docker-compose up -d scheduler
+
+# Optimized executor (high throughput)
+docker-compose --profile optimized up -d scheduler-optimized
+
+# View logs
+docker-compose logs -f scheduler
+
+# Stop the service
+docker-compose down
+
+# Rebuild after code changes
+docker-compose build
+docker-compose up -d scheduler
+```
+
+### Using Go Directly
 
 ```bash
 # Run with default settings
@@ -58,15 +97,28 @@ go run . \
   --optimized
 
 # Environment variables
-export JOB_TIMEOUT_SECONDS=90  # Set job execution timeout
+export JOB_TIMEOUT_SECONDS=90
+export API_RATE_LIMIT_REQUESTS=5000
+export API_RATE_LIMIT_WINDOW_SECONDS=60
 ./job-scheduler-fampay --optimized
+
+# Docker environment variables
+docker run -p 8080:8080 \
+  -e API_RATE_LIMIT_REQUESTS=5000 \
+  -e JOB_TIMEOUT_SECONDS=90 \
+  job-scheduler-fampay
 ```
 
 **Command-line Flags:**
 - `--port`: HTTP server port (default: 8080)
-- `--workers`: Number of executor workers (default: 10, optimized: 1000)
-- `--logfile`: Path to log file (default: stdout)
+- `--workers`: Number of executor workers (default: 1000)
+- `--logfile`: Path to log file (default: scheduler.log)
 - `--optimized`: Use optimized executor for high-throughput scenarios
+
+**Environment Variables:**
+- `JOB_TIMEOUT_SECONDS`: Job execution timeout in seconds (default: 120)
+- `API_RATE_LIMIT_REQUESTS`: Max requests per window (default: 1000)
+- `API_RATE_LIMIT_WINDOW_SECONDS`: Rate limit window in seconds (default: 1)
 
 ## 📡 API Endpoints
 

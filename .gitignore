@@ -37,3 +37,7 @@ coverage*.html
 # Binary output
 job-scheduler-fampay
 
+# Docker
+.docker/
+docker-volumes/
+
