@@ -122,7 +122,7 @@ func (e *JobExecutor) executeJob(ctx context.Context, job *models.Job) {
 	defer cancel()
 
 	start := time.Now()
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, job.API, nil)
+	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, job.API, nil)
 	if err != nil {
 		log.Printf("executor: build request for job %s failed: %v", job.ID, err)
 		e.recordExecutionFailure(ctx, job, time.Since(start), err.Error(), 0, "")

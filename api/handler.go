@@ -221,13 +221,13 @@ func (h *Handler) DeleteJob(c *gin.Context) {
 	})
 }
 
-// GetJobExecutions retrieves execution history for a job
+// GetJobExecutions retrieves the last 10 execution history for a job
 func (h *Handler) GetJobExecutions(c *gin.Context) {
 	jobID := c.Param("id")
 
-	// Parse pagination parameters
-	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "20"))
-	offset, _ := strconv.Atoi(c.DefaultQuery("offset", "0"))
+	// Always return last 10 executions
+	const limit = 10
+	const offset = 0
 
 	executions, total, err := h.repo.GetJobExecutions(c.Request.Context(), jobID, limit, offset)
 	if err != nil {
@@ -238,21 +238,31 @@ func (h *Handler) GetJobExecutions(c *gin.Context) {
 		return
 	}
 
-	// Convert []*JobExecution to []JobExecution
-	executionList := make([]models.JobExecution, len(executions))
-	for i, exec := range executions {
+	// Build simplified response with key fields
+	type ExecutionSummary struct {
+		ExecutedAt   time.Time `json:"executed_at"`
+		HTTPStatus   int       `json:"http_status"`
+		ResponseTime int64     `json:"response_time_ms"` // in milliseconds
+		Success      bool      `json:"success"`
+	}
+
+	summaries := make([]ExecutionSummary, 0, len(executions))
+	for _, exec := range executions {
 		if exec != nil {
-			executionList[i] = *exec
+			summaries = append(summaries, ExecutionSummary{
+				ExecutedAt:   exec.ExecutedAt,
+				HTTPStatus:   exec.HTTPStatus,
+				ResponseTime: exec.ResponseTime.Milliseconds(),
+				Success:      exec.Success,
+			})
 		}
 	}
 
-	page := offset/limit + 1
-	c.JSON(http.StatusOK, models.ExecutionListResponse{
-		JobID:      jobID,
-		Executions: executionList,
-		Total:      total,
-		Page:       page,
-		PageSize:   limit,
+	c.JSON(http.StatusOK, gin.H{
+		"job_id":     jobID,
+		"executions": summaries,
+		"total":      total,
+		"count":      len(summaries),
 	})
 }
 

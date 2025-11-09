@@ -24,7 +24,7 @@ type Config struct {
 // DefaultConfig returns sane defaults for scheduler operation.
 func DefaultConfig() Config {
 	return Config{
-		PollInterval: 5 * time.Second,
+		PollInterval: 1 * time.Second, // Reduced from 5s to 1s for lower latency
 	}
 }
 
@@ -106,6 +106,9 @@ func (s *Scheduler) dispatchDueJobs(ctx context.Context) {
 	}
 
 	now := time.Now()
+	var dueJobs []*models.Job
+
+	// First pass: collect all due jobs
 	for _, job := range jobs {
 		if job == nil {
 			continue
@@ -115,8 +118,18 @@ func (s *Scheduler) dispatchDueJobs(ctx context.Context) {
 			continue
 		}
 
-		s.executor.Submit(job)
+		dueJobs = append(dueJobs, job)
+	}
 
+	// Submit all due jobs immediately to minimize delay
+	for _, job := range dueJobs {
+		s.executor.Submit(job)
+		s.logger.Printf("scheduler: dispatched job %s (was due at %v, dispatched at %v)",
+			job.ID, job.NextRun, now)
+	}
+
+	// Update next run times after submission to avoid blocking execution
+	for _, job := range dueJobs {
 		nextRun, err := s.parser.GetNextRun(job.Schedule, now)
 		if err != nil {
 			s.logger.Printf("scheduler: failed to compute next run for job %s: %v", job.ID, err)

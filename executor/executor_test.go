@@ -6,4 +6,3 @@ import "testing"
 func TestJobExecutorExecuteJob(t *testing.T) {
 	t.Skip("TODO: add executor integration test with stub HTTP server and repository")
 }
-
