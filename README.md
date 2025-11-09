@@ -12,6 +12,7 @@ A high-performance, distributed job scheduling service built in Go that executes
 - **Execution History**: Track execution results and performance
 - **Observability**: Prometheus metrics and Grafana dashboards
 - **Graceful Shutdown**: Clean service termination
+- **HA Ready**: Pluggable repository interface for database backends (PostgreSQL, MySQL, MongoDB)
 
 ## Quick Start
 
@@ -217,7 +218,52 @@ Pre-configured dashboard showing:
 - **Scheduler**: Polls active jobs, dispatches due jobs
 - **Executor**: Worker pool for concurrent HTTP execution
 - **CRON Parser**: Schedule validation and next-run calculation
-- **Repository**: Thread-safe in-memory storage
+- **Repository**: Thread-safe storage interface (default: in-memory)
+
+### High Availability
+
+The application is designed for horizontal scaling and high availability:
+
+**Current Setup** (Single Instance):
+- In-memory repository
+- Single scheduler instance
+- Suitable for moderate workloads
+
+**Production Setup** (High Availability):
+1. **Database Backend**: Implement `JobRepository` interface with:
+   - PostgreSQL with proper indexing on `next_run`, `status`
+   - MySQL with row-level locking
+   - MongoDB for flexible schema
+   
+2. **Multiple Scheduler Instances**: 
+   - Deploy multiple replicas behind a load balancer
+   - Use distributed locking (Redis, etcd) to prevent duplicate dispatches
+   - Each instance polls and claims jobs atomically
+
+3. **Shared State**:
+   - Database ensures all instances see the same jobs
+   - Optimistic locking prevents race conditions
+   - Transaction support ensures consistency
+
+**Example HA Architecture**:
+```
+          Load Balancer
+                │
+        ┌───────┼───────┐
+        ▼       ▼       ▼
+    Instance1 Instance2 Instance3
+        │       │       │
+        └───────┼───────┘
+                ▼
+          PostgreSQL
+        (Shared State)
+```
+
+**Benefits**:
+- No single point of failure
+- Horizontal scaling for API and execution
+- Persistent job storage survives restarts
+- Distributed job coordination
 
 ## Performance
 
