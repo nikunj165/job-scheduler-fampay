@@ -2,9 +2,14 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"job-scheduler-fampay/models"
+)
+
+var (
+	ErrJobNotFound = errors.New("job not found")
 )
 
 // JobRepository defines the interface for job storage operations
