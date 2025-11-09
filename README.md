@@ -1,140 +1,48 @@
 # Job Scheduler Service
 
-A high-performance, distributed job scheduling service built in Go that executes HTTP webhooks on CRON schedules. Designed to handle thousands of concurrent job executions with configurable reliability guarantees.
+A high-performance, distributed job scheduling service built in Go that executes HTTP webhooks on CRON schedules.
 
-## 🚀 Features
+## Features
 
-- **CRON-based Scheduling**: Support for 6-field CRON expressions (including seconds)
-- **HTTP Webhook Execution**: Execute jobs via HTTP POST requests to specified endpoints
-- **Delivery Guarantees**: Support for AT_LEAST_ONCE and AT_MOST_ONCE execution semantics
-- **High Performance**: Optimized executor capable of handling 1000+ jobs/second
+- **CRON-based Scheduling**: 6-field CRON expressions with second precision
+- **HTTP Webhook Execution**: POST requests to configured endpoints
+- **Delivery Guarantees**: AT_LEAST_ONCE and AT_MOST_ONCE semantics
+- **High Performance**: Optimized executor supporting 1000+ jobs/second
 - **RESTful API**: Complete CRUD operations for job management
-- **Execution History**: Track job execution results, response times, and success rates
-- **Real-time Statistics**: Monitor job performance and system health
-- **Graceful Shutdown**: Clean service termination with proper resource cleanup
-- **In-Memory Storage**: Fast, lightweight storage (easily extensible to databases)
+- **Execution History**: Track execution results and performance
+- **Observability**: Prometheus metrics and Grafana dashboards
+- **Graceful Shutdown**: Clean service termination
 
-## 📋 Prerequisites
-
-- Go 1.21 or higher
-- Git
-- curl or similar HTTP client (for testing)
-- jq (optional, for pretty JSON output)
-
-## 🛠️ Installation
+## Quick Start
 
 ### Using Docker (Recommended)
 
 ```bash
-# Clone the repository
+# Clone and start
 git clone https://github.com/nikunj165/job-scheduler-fampay.git
 cd job-scheduler-fampay
+docker-compose up -d
 
-# Run with docker-compose (standard executor)
-docker-compose up -d scheduler
-
-# Or run optimized executor
-docker-compose --profile optimized up -d scheduler-optimized
-
-# View logs
-docker-compose logs -f scheduler
+# Access services
+- API: http://localhost:8080
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (admin/admin)
 ```
 
 ### Using Go
 
 ```bash
-# Clone the repository
+# Clone and build
 git clone https://github.com/nikunj165/job-scheduler-fampay.git
 cd job-scheduler-fampay
-
-# Install dependencies
 go mod tidy
+go build
 
-# Build the service
-go build -o job-scheduler-fampay
+# Run
+./job-scheduler-fampay --port=8080
 ```
 
-## 🏃 Running the Service
-
-### Using Docker
-
-```bash
-# Start complete stack (scheduler + Prometheus + Grafana)
-docker-compose up -d
-
-# Or start specific services
-docker-compose up -d scheduler prometheus grafana
-
-# Optimized executor with monitoring
-docker-compose --profile optimized up -d
-
-# View logs
-docker-compose logs -f scheduler
-
-# Stop the service
-docker-compose down
-
-# Rebuild after code changes
-docker-compose build
-docker-compose up -d scheduler
-```
-
-### Access Services
-- **Job Scheduler API**: http://localhost:8080
-- **Prometheus**: http://localhost:9090
-- **Grafana**: http://localhost:3000 (admin/admin)
-- **Metrics Endpoint**: http://localhost:8080/metrics
-
-### Using Go Directly
-
-```bash
-# Run with default settings
-go run .
-
-# Or run the built binary
-./job-scheduler-fampay
-```
-
-### Configuration Options
-
-```bash
-# Run with custom configuration
-go run . \
-  --port=8080 \
-  --workers=100 \
-  --logfile=scheduler.log \
-  --optimized
-
-# Environment variables
-export JOB_TIMEOUT_SECONDS=90
-export API_RATE_LIMIT_REQUESTS=5000
-export API_RATE_LIMIT_WINDOW_SECONDS=60
-./job-scheduler-fampay --optimized
-
-# Docker environment variables
-docker run -p 8080:8080 \
-  -e API_RATE_LIMIT_REQUESTS=5000 \
-  -e JOB_TIMEOUT_SECONDS=90 \
-  job-scheduler-fampay
-```
-
-**Command-line Flags:**
-- `--port`: HTTP server port (default: 8080)
-- `--workers`: Number of executor workers (default: 1000)
-- `--logfile`: Path to log file (default: scheduler.log)
-- `--optimized`: Use optimized executor for high-throughput scenarios
-
-**Environment Variables:**
-- `JOB_TIMEOUT_SECONDS`: Job execution timeout in seconds (default: 120)
-- `API_RATE_LIMIT_REQUESTS`: Max requests per window (default: 1000)
-- `API_RATE_LIMIT_WINDOW_SECONDS`: Rate limit window in seconds (default: 1)
-
-## 📡 API Endpoints
-
-### Health Check
-```bash
-curl http://localhost:8080/healthz
-```
+## API Usage
 
 ### Create a Job
 ```bash
@@ -147,13 +55,9 @@ curl -X POST http://localhost:8080/api/v1/jobs \
   }'
 ```
 
-### Get All Jobs
+### List Jobs
 ```bash
-# List all jobs with pagination
-curl "http://localhost:8080/api/v1/jobs?limit=10&offset=0"
-
-# Filter by status
-curl "http://localhost:8080/api/v1/jobs?status=ACTIVE"
+curl "http://localhost:8080/api/v1/jobs?limit=10&status=ACTIVE"
 ```
 
 ### Get Job Details
@@ -163,12 +67,9 @@ curl http://localhost:8080/api/v1/jobs/{job_id}
 
 ### Update Job
 ```bash
-curl -X PATCH http://localhost:8080/api/v1/jobs/{job_id} \
+curl -X PUT http://localhost:8080/api/v1/jobs/{job_id} \
   -H "Content-Type: application/json" \
-  -d '{
-    "schedule": "0 */5 * * * *",
-    "status": "INACTIVE"
-  }'
+  -d '{"schedule": "0 */5 * * * *", "status": "INACTIVE"}'
 ```
 
 ### Delete Job
@@ -176,271 +77,229 @@ curl -X PATCH http://localhost:8080/api/v1/jobs/{job_id} \
 curl -X DELETE http://localhost:8080/api/v1/jobs/{job_id}
 ```
 
-### Get Job Executions
+### Get Execution History
 ```bash
-# Returns last 10 executions
 curl http://localhost:8080/api/v1/jobs/{job_id}/executions
 ```
 
-### Get Job Statistics
+### Get Statistics
 ```bash
+# Job stats
 curl http://localhost:8080/api/v1/jobs/{job_id}/stats
+
+# System stats
+curl "http://localhost:8080/api/v1/stats?from=2024-01-01T00:00:00Z"
 ```
 
-### Get System Statistics
+## Configuration
+
+### Command-line Flags
+- `--port`: HTTP port (default: 8080)
+- `--workers`: Worker count (default: 1000)
+- `--logfile`: Log file path (default: scheduler.log)
+- `--optimized`: Enable optimized executor
+
+### Environment Variables
+- `JOB_TIMEOUT_SECONDS`: Job timeout (default: 120)
+- `API_RATE_LIMIT_REQUESTS`: Rate limit (default: 1000)
+- `API_RATE_LIMIT_WINDOW_SECONDS`: Rate limit window (default: 1)
+
+### Examples
+
 ```bash
-# Get scheduler stats for date range
-curl "http://localhost:8080/api/v1/stats?from=2024-01-01T00:00:00Z&to=2024-12-31T23:59:59Z"
+# Standard executor
+go run . --port=8080 --workers=10
+
+# Optimized executor with custom timeout
+JOB_TIMEOUT_SECONDS=90 go run . --optimized
+
+# Docker with custom config
+docker run -p 8080:8080 \
+  -e API_RATE_LIMIT_REQUESTS=5000 \
+  -e JOB_TIMEOUT_SECONDS=90 \
+  job-scheduler-fampay:latest
 ```
 
-## 🧪 Testing
+## Testing
 
-### Run Unit Tests
+### Unit Tests
 ```bash
 # Run all tests
-go test ./... -count=1
+go test ./...
 
-# Run with race detector
-go test -race ./... -count=1
+# With race detector
+go test -race -count=1 ./...
 
-# Run with coverage
+# With coverage
 go test -coverprofile=coverage.out ./...
 go tool cover -html=coverage.out
 ```
 
-### Run Test Suite
+### Integration Tests
 ```bash
-# Run comprehensive test suite (format, vet, unit tests)
+# Start service and run tests
 ./scripts/test_service.sh
 
-# Run integration tests
+# With integration tests
 RUN_INTEGRATION=true ./scripts/test_service.sh
 ```
 
-### Run Integration Tests Only
+### Performance Tests
 ```bash
-# Start the service first
-go run . &
-
-# Run integration tests
-./scripts/integration_test.sh
-
-# Stop the service
-pkill -f "go run ."
-```
-
-### Run Performance Tests
-
-#### Load Test (Heavy Load Simulation)
-```bash
-# Test with default settings (1000 jobs/sec for 60 seconds)
-./scripts/load_test.sh
-
-# Custom configuration
-TARGET_JOBS_PER_SEC=2000 TEST_DURATION=120 ./scripts/load_test.sh
-
-# The script automatically starts the service with --optimized flag
-```
-
-#### Quick Benchmark
-```bash
-# Start the optimized service first
+# Start optimized service
 go run . --optimized &
 
-# Run benchmark (creates 1000 jobs and measures throughput)
+# Run load test
+./scripts/load_test.sh
+
+# Custom load
+TOTAL_JOBS=5000 ./scripts/load_test.sh
+
+# Run benchmark
 ./scripts/benchmark.sh
-
-# Custom job count
-BENCHMARK_JOBS=5000 ./scripts/benchmark.sh
-
-# Stop the service
-pkill -f "go run ."
 ```
 
-## 🏗️ Architecture
+## Monitoring
 
-### Core Components
+### Prometheus Metrics
 
-1. **API Layer** (`/api`)
-   - HTTP handlers for RESTful endpoints
-   - Request validation and response formatting
-   - Middleware for CORS, logging, and error handling
+Available at `http://localhost:8080/metrics`:
 
-2. **Scheduler** (`/scheduler`)
-   - Polls active jobs at configurable intervals
-   - Determines which jobs are due for execution
-   - Dispatches jobs to the executor
+- `jobs_created_total`, `jobs_deleted_total`, `jobs_active`
+- `job_executions_total{status}` - Success/failure counters
+- `job_execution_duration_seconds` - Execution duration histogram
+- `job_execution_response_time_ms` - Response time histogram
+- `scheduler_jobs_dispatched_total` - Dispatch counter
+- `executor_queue_depth` - Current queue size
+- `http_requests_total{method,endpoint,status}` - API request metrics
 
-3. **Executor** (`/executor`)
-   - Worker pool for concurrent job execution
-   - HTTP client with configurable timeouts
-   - Records execution results and metrics
+### Grafana
 
-4. **CRON Parser** (`/cron`)
-   - Validates 6-field CRON expressions
-   - Calculates next execution times
-   - Supports standard CRON syntax with seconds
+Pre-configured dashboard showing:
+- Job creation and execution rates
+- HTTP request latencies (p50, p95, p99)
+- Success vs failure rates
+- Queue depth and worker utilization
 
-5. **Repository** (`/repository`)
-   - In-memory storage implementation
-   - Thread-safe operations with mutex locks
-   - Easily extensible to database backends
-
-### Job Execution Flow
+## Architecture
 
 ```
-1. Client creates job via API
-2. Scheduler polls for active jobs
-3. Scheduler identifies due jobs
-4. Executor receives job from scheduler
-5. Executor makes HTTP POST request
-6. Executor records execution result
-7. Client queries execution history
+┌─────────────┐
+│   Client    │
+└──────┬──────┘
+       │ HTTP
+       ▼
+┌─────────────────────────────────────┐
+│         API Layer (Gin)             │
+│  • CRUD operations                  │
+│  • Request validation               │
+│  • Metrics middleware               │
+└─────────────┬───────────────────────┘
+              │
+              ▼
+┌─────────────────────────────────────┐
+│    Repository (In-Memory)           │
+│  • Thread-safe storage              │
+│  • Job & execution management       │
+└─────┬───────────────────┬───────────┘
+      │                   │
+      ▼                   ▼
+┌─────────────┐    ┌─────────────┐
+│  Scheduler  │    │  Executor   │
+│  • Poll     │───▶│  • Workers  │
+│  • Dispatch │    │  • HTTP     │
+└─────────────┘    └─────────────┘
 ```
 
-## 📊 Performance
+### Components
 
-### Standard Executor
-- 10 workers by default
-- Suitable for moderate workloads
-- 120-second request timeout
-- ~100-200 jobs/second throughput
+- **API**: HTTP handlers, routing, middleware
+- **Scheduler**: Polls active jobs, dispatches due jobs
+- **Executor**: Worker pool for concurrent HTTP execution
+- **CRON Parser**: Schedule validation and next-run calculation
+- **Repository**: Thread-safe in-memory storage
 
-### Optimized Executor
-- 1000 workers
-- 10,000 job queue capacity
+## Performance
+
+| Executor   | Workers | Queue  | Throughput       |
+|------------|---------|--------|------------------|
+| Standard   | 10      | 100    | ~100-200 jobs/s  |
+| Optimized  | 1000    | 10,000 | 1000+ jobs/s     |
+
+The optimized executor includes:
 - HTTP/2 with connection pooling
-- 120-second request timeout
-- Capable of 1000+ jobs/second
-- Real-time metrics reporting every 10 seconds
+- Asynchronous execution recording
+- Real-time metrics reporting
+- Non-blocking job submission
 
-### Performance Testing
+## Project Structure
 
-The project includes comprehensive performance testing tools:
-
-1. **Load Test** (`scripts/load_test.sh`)
-   - Simulates sustained high load (1000+ jobs/sec)
-   - Runs for configurable duration (default: 60 seconds)
-   - Provides detailed metrics including:
-     - Job creation rate
-     - Execution rate and success percentage
-     - Response time statistics (min/avg/max)
-     - System resource utilization
-
-2. **Benchmark** (`scripts/benchmark.sh`)
-   - Quick throughput measurement
-   - Creates jobs in batches for consistent load
-   - Measures average jobs/second rate
-   - Provides performance verdict based on achieved rate
-
-Example performance metrics from optimized executor:
-- **Creation Rate**: 1000+ jobs/sec
-- **Execution Rate**: 950+ jobs/sec
-- **Success Rate**: >95%
-- **Average Response Time**: <100ms
-- **Queue Capacity**: 10,000 jobs
-
-## 🔧 Development
-
-### Project Structure
 ```
 job-scheduler-fampay/
 ├── api/              # HTTP handlers and routing
 ├── cron/             # CRON expression parser
 ├── executor/         # Job execution engine
+├── metrics/          # Prometheus instrumentation
 ├── models/           # Data models
 ├── repository/       # Storage layer
 ├── scheduler/        # Job scheduling logic
-├── scripts/          # Test and utility scripts
-└── main.go          # Application entry point
+├── scripts/          # Test scripts
+├── grafana/          # Grafana configuration
+├── prometheus/       # Prometheus configuration
+├── Dockerfile        # Container image
+├── docker-compose.yml
+└── main.go
 ```
 
-### Adding New Features
+## Development
 
-1. **Database Support**: Implement the `JobRepository` interface
-2. **Authentication**: Add middleware to the API router
-3. **Metrics**: Integrate Prometheus or similar monitoring
-4. **Message Queue**: Replace in-memory queue with RabbitMQ/Kafka
+### Prerequisites
+- Go 1.23+
+- Docker & Docker Compose (optional)
+- jq (for testing scripts)
 
-## 📈 Monitoring & Observability
+### Build
+```bash
+go build -o job-scheduler-fampay
+```
 
-### Prometheus Metrics
+### Format & Lint
+```bash
+gofmt -w .
+go vet ./...
+```
 
-The service exposes comprehensive metrics at `/metrics` endpoint:
+### Run Tests
+```bash
+./scripts/test_service.sh
+```
 
-#### Job Metrics
-- `jobs_created_total` - Total jobs created
-- `jobs_deleted_total` - Total jobs deleted
-- `jobs_active` - Current active jobs count
-
-#### Execution Metrics
-- `job_executions_total{status}` - Total executions by status (success/failure)
-- `job_execution_duration_seconds` - Histogram of execution durations
-- `job_execution_response_time_ms` - Histogram of HTTP response times
-
-#### Scheduler Metrics
-- `scheduler_polls_total` - Total number of scheduler polls
-- `scheduler_jobs_dispatched_total` - Jobs dispatched by scheduler
-- `scheduler_poll_duration_seconds` - Scheduler poll latency
-
-#### Executor Metrics
-- `executor_queue_depth` - Current queue depth
-- `executor_workers_active` - Active worker count
-
-#### API Metrics
-- `http_requests_total{method,endpoint,status}` - HTTP request counters
-- `http_request_duration_seconds{method,endpoint}` - Request duration histogram
-- `http_rate_limit_exceeded_total` - Rate limit violations
-
-### Grafana Dashboards
-
-Access Grafana at http://localhost:3000 with credentials `admin/admin`.
-
-The pre-configured dashboard includes:
-- Real-time job creation and execution rates
-- HTTP request performance (p50, p95, p99)
-- Executor queue depth and worker utilization
-- Success vs failure rates
-- Rate limiting statistics
-
-### Quick Start with Monitoring
+## Docker Commands
 
 ```bash
-# Start complete observability stack
-docker-compose up -d
+# Build image
+docker build -t job-scheduler-fampay:latest .
 
-# Wait for services to be ready
-sleep 10
+# Run standard
+docker-compose up -d scheduler
 
-# Create some test jobs
-curl -X POST http://localhost:8080/api/v1/jobs \
-  -H "Content-Type: application/json" \
-  -d '{"schedule": "*/5 * * * * *", "api": "https://httpcan.org/post", "type": "ATLEAST_ONCE"}'
+# Run optimized
+docker-compose --profile optimized up -d
 
-# View metrics in Prometheus
-open http://localhost:9090
+# View logs
+docker-compose logs -f
 
-# View dashboards in Grafana
-open http://localhost:3000  # Login: admin/admin
+# Stop all services
+docker-compose down
 
-# Query metrics directly
-curl http://localhost:8080/metrics
+# Clean up volumes
+docker-compose down -v
 ```
 
-### Logs
-
-The service logs important events including:
-- Job creation/updates/deletions
-- Job dispatches with timing information
-- Execution results and failures
-- System errors and warnings
-
-Configure logging output with the `--logfile` flag or use `docker-compose logs`.
-
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
