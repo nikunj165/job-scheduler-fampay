@@ -113,7 +113,30 @@ func run(ctx context.Context, cfg Config, logger *log.Logger) error {
 	jobScheduler.Start(ctx)
 	defer jobScheduler.Stop()
 
-	server := api.NewServer(cfg.Port, logger, repo)
+	routerOpts := api.RouterOptions{
+		RateLimitRequests: 1000,
+		RateLimitWindow:   time.Second,
+	}
+
+	if val := os.Getenv("API_RATE_LIMIT_REQUESTS"); val != "" {
+		if requests, err := strconv.Atoi(val); err == nil && requests > 0 {
+			routerOpts.RateLimitRequests = requests
+		} else {
+			logger.Printf("invalid API_RATE_LIMIT_REQUESTS=%q, using default %d", val, routerOpts.RateLimitRequests)
+		}
+	}
+
+	if val := os.Getenv("API_RATE_LIMIT_WINDOW_SECONDS"); val != "" {
+		if seconds, err := strconv.Atoi(val); err == nil && seconds > 0 {
+			routerOpts.RateLimitWindow = time.Duration(seconds) * time.Second
+		} else {
+			logger.Printf("invalid API_RATE_LIMIT_WINDOW_SECONDS=%q, using default %s", val, routerOpts.RateLimitWindow)
+		}
+	}
+
+	logger.Printf("API rate limit configured for %d requests per %s", routerOpts.RateLimitRequests, routerOpts.RateLimitWindow)
+
+	server := api.NewServer(cfg.Port, logger, repo, routerOpts)
 
 	errCh := make(chan error, 1)
 	go func() {

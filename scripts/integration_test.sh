@@ -65,7 +65,7 @@ CREATE_RESPONSE=$(curl -s -X POST "${API_URL}/api/v1/jobs" \
     -H "Content-Type: application/json" \
     -d '{
         "schedule": "*/30 * * * * *",
-        "api": "https://httpbin.org/post",
+        "api": "https://httpcan.org/post",
         "type": "ATLEAST_ONCE"
     }')
 
@@ -229,7 +229,7 @@ fi
 # Test 7: Get job stats
 echo "[test] Test 7: Get job statistics"
 STATS_RESPONSE=$(curl -s "${API_URL}/api/v1/jobs/${JOB_ID}/stats")
-TOTAL_EXECS=$(echo "$STATS_RESPONSE" | jq -r '.total_executions')
+TOTAL_EXECS=$(echo "$STATS_RESPONSE" | jq -r '.total_executions // 0')
 if [[ "$TOTAL_EXECS" -ge 1 ]]; then
     echo -e "${GREEN}  ✓ Job stats retrieved (total executions: $TOTAL_EXECS)${NC}"
 else
@@ -264,7 +264,7 @@ IMMEDIATE_RESPONSE=$(curl -s -X POST "${API_URL}/api/v1/jobs" \
     -H "Content-Type: application/json" \
     -d '{
         "schedule": "*/10 * * * * *",
-        "api": "https://httpbin.org/status/200",
+        "api": "https://httpcan.org/status/200",
         "type": "ATMOST_ONCE"
     }')
 

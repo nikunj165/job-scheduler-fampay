@@ -18,13 +18,13 @@ type Server struct {
 
 // NewServer constructs a Server configured to listen on the provided port with the
 // built-in router that exposes a health check endpoint.
-func NewServer(port string, logger *log.Logger, repo repository.JobRepository) *Server {
+func NewServer(port string, logger *log.Logger, repo repository.JobRepository, opts RouterOptions) *Server {
 	if logger == nil {
 		logger = log.Default()
 	}
 
 	handler := NewHandler(logger, repo)
-	router := NewRouter(handler, RouterOptions{})
+	router := NewRouter(handler, opts)
 
 	return &Server{
 		logger: logger,

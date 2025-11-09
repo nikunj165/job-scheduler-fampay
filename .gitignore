@@ -25,3 +25,15 @@ go.work.sum
 # macOS
 .DS_Store
 
+# Log files
+*.log
+logs/
+log/
+
+# Test and coverage files
+coverage*.out
+coverage*.html
+
+# Binary output
+job-scheduler-fampay
+
