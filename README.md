@@ -33,3 +33,16 @@ go build ./...
 go test ./... -count=1
 ```
 
+## Scheduler & Executor
+
+- The `scheduler` package polls active jobs at startup and hands due runs to the executor.
+- The `executor` package performs HTTP requests for each job and records execution results.
+
+Scaffolded tests for these components live in `scheduler/scheduler_test.go` and `executor/executor_test.go`.
+
+Use the helper script to run formatting, vetting, and tests in one go:
+
+```bash
+bash scripts/test_service.sh
+```
+
