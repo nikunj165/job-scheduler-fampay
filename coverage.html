@@ -1,0 +1,2211 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>api: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">job-scheduler-fampay/api/handler.go (0.0%)</option>
+				
+				<option value="file1">job-scheduler-fampay/api/middleware.go (0.0%)</option>
+				
+				<option value="file2">job-scheduler-fampay/api/router.go (0.0%)</option>
+				
+				<option value="file3">job-scheduler-fampay/api/server.go (0.0%)</option>
+				
+				<option value="file4">job-scheduler-fampay/cron/parser.go (47.3%)</option>
+				
+				<option value="file5">job-scheduler-fampay/cron/validator.go (77.8%)</option>
+				
+				<option value="file6">job-scheduler-fampay/executor/executor.go (0.0%)</option>
+				
+				<option value="file7">job-scheduler-fampay/executor/executor_optimized.go (0.0%)</option>
+				
+				<option value="file8">job-scheduler-fampay/main.go (0.0%)</option>
+				
+				<option value="file9">job-scheduler-fampay/repository/memory.go (99.0%)</option>
+				
+				<option value="file10">job-scheduler-fampay/scheduler/scheduler.go (0.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package api
+
+import (
+        "log"
+        "net/http"
+        "strconv"
+        "time"
+
+        "github.com/gin-gonic/gin"
+
+        "job-scheduler-fampay/cron"
+        "job-scheduler-fampay/models"
+        "job-scheduler-fampay/repository"
+)
+
+// Handler exposes HTTP endpoints for the API service.
+type Handler struct {
+        logger     *log.Logger
+        repo       repository.JobRepository
+        cronParser *cron.Parser
+}
+
+// NewHandler constructs a new Handler instance.
+func NewHandler(logger *log.Logger, repo repository.JobRepository) *Handler <span class="cov0" title="0">{
+        if logger == nil </span><span class="cov0" title="0">{
+                logger = log.Default()
+        }</span>
+        <span class="cov0" title="0">if repo == nil </span><span class="cov0" title="0">{
+                repo = repository.NewMemoryRepository()
+        }</span>
+        <span class="cov0" title="0">return &amp;Handler{
+                logger:     logger,
+                repo:       repo,
+                cronParser: cron.NewParser(),
+        }</span>
+}
+
+// Health returns the current health status of the service.
+func (h *Handler) Health(c *gin.Context) <span class="cov0" title="0">{
+        c.JSON(http.StatusOK, gin.H{
+                "status":    "ok",
+                "timestamp": time.Now().Unix(),
+        })
+}</span>
+
+// CreateJob creates a new scheduled job
+func (h *Handler) CreateJob(c *gin.Context) <span class="cov0" title="0">{
+        var req models.JobRequest
+        if err := c.ShouldBindJSON(&amp;req); err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Invalid request body: %v", err)
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error":   "Invalid request body",
+                        "details": err.Error(),
+                })
+                return
+        }</span>
+
+        // Validate CRON expression
+        <span class="cov0" title="0">if err := h.cronParser.Validate(req.Schedule); err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Invalid CRON expression: %v", err)
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error":   "Invalid CRON expression",
+                        "details": err.Error(),
+                })
+                return
+        }</span>
+
+        // Calculate next run time
+        <span class="cov0" title="0">nextRun, err := h.cronParser.GetNextRun(req.Schedule, time.Now())
+        if err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to calculate next run: %v", err)
+                c.JSON(http.StatusInternalServerError, gin.H{
+                        "error": "Failed to calculate next run time",
+                })
+                return
+        }</span>
+
+        // Create job
+        <span class="cov0" title="0">job := &amp;models.Job{
+                Schedule: req.Schedule,
+                API:      req.API,
+                Type:     req.Type,
+                Metadata: req.Metadata,
+                NextRun:  &amp;nextRun,
+        }
+
+        if err := h.repo.CreateJob(c.Request.Context(), job); err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to create job: %v", err)
+                c.JSON(http.StatusInternalServerError, gin.H{
+                        "error": "Failed to create job",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">h.logger.Printf("Job created: %s", job.ID)
+        c.JSON(http.StatusCreated, models.JobResponse{
+                JobID:     job.ID,
+                Message:   "Job created successfully",
+                CreatedAt: job.CreatedAt,
+        })</span>
+}
+
+// GetAllJobs retrieves all jobs with pagination
+func (h *Handler) GetAllJobs(c *gin.Context) <span class="cov0" title="0">{
+        // Parse pagination parameters
+        limitStr := c.DefaultQuery("limit", "20")
+        limit, err := strconv.Atoi(limitStr)
+        if err != nil || limit &lt;= 0 </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error": "Invalid 'limit' parameter",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">offsetStr := c.DefaultQuery("offset", "0")
+        offset, err := strconv.Atoi(offsetStr)
+        if err != nil || offset &lt; 0 </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error": "Invalid 'offset' parameter",
+                })
+                return
+        }</span>
+
+        // Parse optional status filter
+        <span class="cov0" title="0">var statusFilter *models.JobStatus
+        if status := c.Query("status"); status != "" </span><span class="cov0" title="0">{
+                s := models.JobStatus(status)
+                statusFilter = &amp;s
+        }</span>
+
+        <span class="cov0" title="0">jobs, total, err := h.repo.GetAllJobs(c.Request.Context(), limit, offset, statusFilter)
+        if err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to get jobs: %v", err)
+                c.JSON(http.StatusInternalServerError, gin.H{
+                        "error": "Failed to retrieve jobs",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">c.JSON(http.StatusOK, gin.H{
+                "jobs":   jobs,
+                "total":  total,
+                "limit":  limit,
+                "offset": offset,
+        })</span>
+}
+
+// GetJob retrieves a specific job by ID
+func (h *Handler) GetJob(c *gin.Context) <span class="cov0" title="0">{
+        jobID := c.Param("id")
+
+        job, err := h.repo.GetJob(c.Request.Context(), jobID)
+        if err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to get job %s: %v", jobID, err)
+                c.JSON(http.StatusNotFound, gin.H{
+                        "error": "Job not found",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">c.JSON(http.StatusOK, job)</span>
+}
+
+// UpdateJob updates an existing job
+func (h *Handler) UpdateJob(c *gin.Context) <span class="cov0" title="0">{
+        jobID := c.Param("id")
+
+        var updates map[string]interface{}
+        if err := c.ShouldBindJSON(&amp;updates); err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error": "Invalid request body",
+                })
+                return
+        }</span>
+
+        // Validate CRON expression if provided
+        <span class="cov0" title="0">if schedule, ok := updates["schedule"].(string); ok </span><span class="cov0" title="0">{
+                if err := h.cronParser.Validate(schedule); err != nil </span><span class="cov0" title="0">{
+                        c.JSON(http.StatusBadRequest, gin.H{
+                                "error":   "Invalid CRON expression",
+                                "details": err.Error(),
+                        })
+                        return
+                }</span>
+
+                // Update next run time
+                <span class="cov0" title="0">nextRun, _ := h.cronParser.GetNextRun(schedule, time.Now())
+                h.repo.UpdateJobNextRun(c.Request.Context(), jobID, nextRun)</span>
+        }
+
+        <span class="cov0" title="0">if err := h.repo.UpdateJob(c.Request.Context(), jobID, updates); err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to update job %s: %v", jobID, err)
+                c.JSON(http.StatusNotFound, gin.H{
+                        "error": "Job not found",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">c.JSON(http.StatusOK, gin.H{
+                "message": "Job updated successfully",
+                "job_id":  jobID,
+        })</span>
+}
+
+// DeleteJob deletes a job
+func (h *Handler) DeleteJob(c *gin.Context) <span class="cov0" title="0">{
+        jobID := c.Param("id")
+
+        if err := h.repo.DeleteJob(c.Request.Context(), jobID); err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to delete job %s: %v", jobID, err)
+                c.JSON(http.StatusNotFound, gin.H{
+                        "error": "Job not found",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">h.logger.Printf("Job deleted: %s", jobID)
+        c.JSON(http.StatusOK, gin.H{
+                "message": "Job deleted successfully",
+                "job_id":  jobID,
+        })</span>
+}
+
+// GetJobExecutions retrieves the last 10 execution history for a job
+func (h *Handler) GetJobExecutions(c *gin.Context) <span class="cov0" title="0">{
+        jobID := c.Param("id")
+
+        // Always return last 10 executions
+        const limit = 10
+        const offset = 0
+
+        executions, total, err := h.repo.GetJobExecutions(c.Request.Context(), jobID, limit, offset)
+        if err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to get executions for job %s: %v", jobID, err)
+                c.JSON(http.StatusNotFound, gin.H{
+                        "error": "Job not found",
+                })
+                return
+        }</span>
+
+        // Build simplified response with key fields
+        <span class="cov0" title="0">type ExecutionSummary struct {
+                ExecutedAt   time.Time `json:"executed_at"`
+                HTTPStatus   int       `json:"http_status"`
+                ResponseTime int64     `json:"response_time_ms"` // in milliseconds
+                Success      bool      `json:"success"`
+        }
+
+        summaries := make([]ExecutionSummary, 0, len(executions))
+        for _, exec := range executions </span><span class="cov0" title="0">{
+                if exec != nil </span><span class="cov0" title="0">{
+                        summaries = append(summaries, ExecutionSummary{
+                                ExecutedAt:   exec.ExecutedAt,
+                                HTTPStatus:   exec.HTTPStatus,
+                                ResponseTime: exec.ResponseTime.Milliseconds(),
+                                Success:      exec.Success,
+                        })
+                }</span>
+        }
+
+        <span class="cov0" title="0">c.JSON(http.StatusOK, gin.H{
+                "job_id":     jobID,
+                "executions": summaries,
+                "total":      total,
+                "count":      len(summaries),
+        })</span>
+}
+
+// GetJobStats retrieves statistics for a specific job
+func (h *Handler) GetJobStats(c *gin.Context) <span class="cov0" title="0">{
+        jobID := c.Param("id")
+
+        stats, err := h.repo.GetJobStats(c.Request.Context(), jobID)
+        if err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to get stats for job %s: %v", jobID, err)
+                c.JSON(http.StatusNotFound, gin.H{
+                        "error": "Job not found",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">c.JSON(http.StatusOK, stats)</span>
+}
+
+// GetSchedulerStats retrieves overall scheduler statistics
+func (h *Handler) GetSchedulerStats(c *gin.Context) <span class="cov0" title="0">{
+        // Parse time range
+        fromStr := c.DefaultQuery("from", time.Now().Add(-24*time.Hour).Format(time.RFC3339))
+        toStr := c.DefaultQuery("to", time.Now().Format(time.RFC3339))
+
+        from, err := time.Parse(time.RFC3339, fromStr)
+        if err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error": "Invalid 'from' time format",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">to, err := time.Parse(time.RFC3339, toStr)
+        if err != nil </span><span class="cov0" title="0">{
+                c.JSON(http.StatusBadRequest, gin.H{
+                        "error": "Invalid 'to' time format",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">stats, err := h.repo.GetSchedulerStats(c.Request.Context(), from, to)
+        if err != nil </span><span class="cov0" title="0">{
+                h.logger.Printf("Failed to get scheduler stats: %v", err)
+                c.JSON(http.StatusInternalServerError, gin.H{
+                        "error": "Failed to retrieve scheduler statistics",
+                })
+                return
+        }</span>
+
+        <span class="cov0" title="0">c.JSON(http.StatusOK, stats)</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package api
+
+import (
+        "log"
+        "net/http"
+        "sync"
+        "time"
+
+        "github.com/gin-gonic/gin"
+)
+
+func corsMiddleware() gin.HandlerFunc <span class="cov0" title="0">{
+        return func(c *gin.Context) </span><span class="cov0" title="0">{
+                headers := c.Writer.Header()
+                headers.Set("Access-Control-Allow-Origin", "*")
+                headers.Set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+                headers.Set("Access-Control-Allow-Headers", "Content-Type, Accept, Authorization, X-Requested-With")
+                headers.Set("Access-Control-Max-Age", "600")
+
+                if c.Request.Method == http.MethodOptions </span><span class="cov0" title="0">{
+                        c.AbortWithStatus(http.StatusNoContent)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">c.Next()</span>
+        }
+}
+
+func rateLimitMiddleware(logger *log.Logger, limit int, window time.Duration) gin.HandlerFunc <span class="cov0" title="0">{
+        if logger == nil </span><span class="cov0" title="0">{
+                logger = log.Default()
+        }</span>
+
+        <span class="cov0" title="0">rl := &amp;rateLimiter{
+                limit:       limit,
+                window:      window,
+                windowStart: time.Now(),
+                requests:    make(map[string]int),
+        }
+
+        return func(c *gin.Context) </span><span class="cov0" title="0">{
+                clientIP := c.ClientIP()
+                if clientIP == "" </span><span class="cov0" title="0">{
+                        clientIP = "unknown"
+                }</span>
+
+                <span class="cov0" title="0">if !rl.Allow(clientIP) </span><span class="cov0" title="0">{
+                        logger.Printf("rate limit exceeded for %s %s (ip=%s)", c.Request.Method, c.Request.URL.Path, clientIP)
+                        c.Header("Retry-After", rl.window.String())
+                        c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
+                        return
+                }</span>
+
+                <span class="cov0" title="0">c.Next()</span>
+        }
+}
+
+type rateLimiter struct {
+        mu          sync.Mutex
+        limit       int
+        window      time.Duration
+        windowStart time.Time
+        requests    map[string]int
+}
+
+func (rl *rateLimiter) Allow(clientIP string) bool <span class="cov0" title="0">{
+        now := time.Now()
+
+        rl.mu.Lock()
+        defer rl.mu.Unlock()
+
+        if now.Sub(rl.windowStart) &gt;= rl.window </span><span class="cov0" title="0">{
+                rl.windowStart = now
+                rl.requests = make(map[string]int)
+        }</span>
+
+        <span class="cov0" title="0">if rl.requests[clientIP] &gt;= rl.limit </span><span class="cov0" title="0">{
+                return false
+        }</span>
+
+        <span class="cov0" title="0">rl.requests[clientIP]++
+        return true</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package api
+
+import (
+        "log"
+        "time"
+
+        "github.com/gin-gonic/gin"
+)
+
+const (
+        defaultRateLimitRequests = 60
+        defaultRateLimitWindow   = time.Minute
+)
+
+// RouterOptions configure the behavior of the API router.
+type RouterOptions struct {
+        RateLimitRequests int
+        RateLimitWindow   time.Duration
+}
+
+// NewRouter wires routes to handler functions and wraps them with middleware.
+func NewRouter(handler *Handler, opts RouterOptions) *gin.Engine <span class="cov0" title="0">{
+        if handler == nil </span><span class="cov0" title="0">{
+                panic("handler must not be nil")</span>
+        }
+
+        <span class="cov0" title="0">if opts.RateLimitRequests &lt;= 0 </span><span class="cov0" title="0">{
+                opts.RateLimitRequests = defaultRateLimitRequests
+        }</span>
+        <span class="cov0" title="0">if opts.RateLimitWindow &lt;= 0 </span><span class="cov0" title="0">{
+                opts.RateLimitWindow = defaultRateLimitWindow
+        }</span>
+
+        // Create Gin router with default middleware
+        <span class="cov0" title="0">router := gin.New()
+        router.Use(gin.Recovery())
+        router.Use(gin.Logger())
+
+        // Apply custom middleware
+        router.Use(corsMiddleware())
+        router.Use(rateLimitMiddleware(handler.logger, opts.RateLimitRequests, opts.RateLimitWindow))
+
+        // Health check endpoint
+        router.GET("/healthz", handler.Health)
+
+        // API v1 routes
+        v1 := router.Group("/api/v1")
+        </span><span class="cov0" title="0">{
+                // Job management endpoints
+                jobs := v1.Group("/jobs")
+                </span><span class="cov0" title="0">{
+                        jobs.POST("", handler.CreateJob)       // Create a new job
+                        jobs.GET("", handler.GetAllJobs)       // Get all jobs (with pagination)
+                        jobs.GET("/:id", handler.GetJob)       // Get a specific job
+                        jobs.PUT("/:id", handler.UpdateJob)    // Update a job
+                        jobs.DELETE("/:id", handler.DeleteJob) // Delete a job
+
+                        // Job-specific operations
+                        jobs.GET("/:id/executions", handler.GetJobExecutions) // Get execution history
+                        jobs.GET("/:id/stats", handler.GetJobStats)           // Get job statistics
+                }</span>
+
+                // Scheduler statistics
+                <span class="cov0" title="0">v1.GET("/scheduler/stats", handler.GetSchedulerStats)</span>
+        }
+
+        <span class="cov0" title="0">return router</span>
+}
+
+// SetupRoutes configures all routes for the API server
+func SetupRoutes(logger *log.Logger) *gin.Engine <span class="cov0" title="0">{
+        handler := NewHandler(logger, nil) // Repository will be initialized in handler
+        return NewRouter(handler, RouterOptions{})
+}</span>
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package api
+
+import (
+        "context"
+        "fmt"
+        "log"
+        "net/http"
+        "time"
+
+        "job-scheduler-fampay/repository"
+)
+
+// Server wraps an http.Server and exposes lifecycle helpers for the API service.
+type Server struct {
+        logger *log.Logger
+        http   *http.Server
+}
+
+// NewServer constructs a Server configured to listen on the provided port with the
+// built-in router that exposes a health check endpoint.
+func NewServer(port string, logger *log.Logger, repo repository.JobRepository) *Server <span class="cov0" title="0">{
+        if logger == nil </span><span class="cov0" title="0">{
+                logger = log.Default()
+        }</span>
+
+        <span class="cov0" title="0">handler := NewHandler(logger, repo)
+        router := NewRouter(handler, RouterOptions{})
+
+        return &amp;Server{
+                logger: logger,
+                http: &amp;http.Server{
+                        Addr:              fmt.Sprintf(":%s", port),
+                        Handler:           router,
+                        ReadHeaderTimeout: 5 * time.Second,
+                        WriteTimeout:      10 * time.Second,
+                        IdleTimeout:       120 * time.Second,
+                        MaxHeaderBytes:    1 &lt;&lt; 20, // 1 MB
+                },
+        }</span>
+}
+
+// Start begins serving HTTP requests. It blocks until the server stops.
+func (s *Server) Start() error <span class="cov0" title="0">{
+        s.logger.Printf("API server listening on %s", s.http.Addr)
+        if err := s.http.ListenAndServe(); err != nil &amp;&amp; err != http.ErrServerClosed </span><span class="cov0" title="0">{
+                return err
+        }</span>
+        <span class="cov0" title="0">s.logger.Println("API server stopped")
+        return nil</span>
+}
+
+// Shutdown attempts a graceful shutdown of the HTTP server within the provided context.
+func (s *Server) Shutdown(ctx context.Context) error <span class="cov0" title="0">{
+        s.logger.Println("API server shutting down")
+        return s.http.Shutdown(ctx)
+}</span>
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package cron
+
+import (
+        "fmt"
+        "strings"
+        "time"
+
+        "github.com/robfig/cron/v3"
+)
+
+// Parser handles CRON expression parsing with seconds support
+type Parser struct {
+        parser cron.Parser
+}
+
+// NewParser creates a new CRON parser that supports 6-field expressions with seconds
+func NewParser() *Parser <span class="cov8" title="1">{
+        // Configure parser to handle seconds (6 fields)
+        // Format: second minute hour day month weekday
+        parser := cron.NewParser(
+                cron.Second | cron.Minute | cron.Hour | cron.Dom | cron.Month | cron.Dow | cron.Descriptor,
+        )
+        return &amp;Parser{
+                parser: parser,
+        }
+}</span>
+
+// Validate checks if a CRON expression is valid
+func (p *Parser) Validate(expression string) error <span class="cov8" title="1">{
+        if expression == "" </span><span class="cov8" title="1">{
+                return fmt.Errorf("CRON expression cannot be empty")
+        }</span>
+
+        // Check field count
+        <span class="cov8" title="1">fields := strings.Fields(expression)
+        if len(fields) != 6 </span><span class="cov8" title="1">{
+                return fmt.Errorf("CRON expression must have exactly 6 fields (second minute hour day month weekday), got %d fields", len(fields))
+        }</span>
+
+        // Try to parse the expression
+        <span class="cov8" title="1">_, err := p.parser.Parse(expression)
+        if err != nil </span><span class="cov8" title="1">{
+                return fmt.Errorf("invalid CRON expression: %w", err)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// Parse parses a CRON expression and returns a Schedule
+func (p *Parser) Parse(expression string) (cron.Schedule, error) <span class="cov8" title="1">{
+        return p.parser.Parse(expression)
+}</span>
+
+// GetNextRun calculates the next run time for a CRON expression
+func (p *Parser) GetNextRun(expression string, from time.Time) (time.Time, error) <span class="cov8" title="1">{
+        schedule, err := p.Parse(expression)
+        if err != nil </span><span class="cov0" title="0">{
+                return time.Time{}, err
+        }</span>
+
+        <span class="cov8" title="1">return schedule.Next(from), nil</span>
+}
+
+// GetNextNRuns calculates the next N run times for a CRON expression
+func (p *Parser) GetNextNRuns(expression string, n int, from time.Time) ([]time.Time, error) <span class="cov8" title="1">{
+        if n &lt;= 0 </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("n must be positive")
+        }</span>
+
+        <span class="cov8" title="1">schedule, err := p.Parse(expression)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov8" title="1">runs := make([]time.Time, 0, n)
+        current := from
+        for i := 0; i &lt; n; i++ </span><span class="cov8" title="1">{
+                next := schedule.Next(current)
+                if next.IsZero() </span><span class="cov0" title="0">{
+                        break</span>
+                }
+                <span class="cov8" title="1">runs = append(runs, next)
+                current = next</span>
+        }
+
+        <span class="cov8" title="1">return runs, nil</span>
+}
+
+// ExplainExpression provides a human-readable explanation of a CRON expression
+func (p *Parser) ExplainExpression(expression string) (string, error) <span class="cov0" title="0">{
+        if err := p.Validate(expression); err != nil </span><span class="cov0" title="0">{
+                return "", err
+        }</span>
+
+        <span class="cov0" title="0">fields := strings.Fields(expression)
+        if len(fields) != 6 </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("invalid field count")
+        }</span>
+
+        <span class="cov0" title="0">parts := []string{
+                fmt.Sprintf("Second: %s", explainField(fields[0], "second", 0, 59)),
+                fmt.Sprintf("Minute: %s", explainField(fields[1], "minute", 0, 59)),
+                fmt.Sprintf("Hour: %s", explainField(fields[2], "hour", 0, 23)),
+                fmt.Sprintf("Day: %s", explainField(fields[3], "day", 1, 31)),
+                fmt.Sprintf("Month: %s", explainField(fields[4], "month", 1, 12)),
+                fmt.Sprintf("Weekday: %s", explainField(fields[5], "weekday", 0, 6)),
+        }
+
+        return strings.Join(parts, "\n"), nil</span>
+}
+
+// explainField provides a human-readable explanation for a single CRON field
+func explainField(field, name string, min, max int) string <span class="cov0" title="0">{
+        if field == "*" </span><span class="cov0" title="0">{
+                return fmt.Sprintf("every %s", name)
+        }</span>
+        <span class="cov0" title="0">if field == "?" </span><span class="cov0" title="0">{
+                return fmt.Sprintf("any %s", name)
+        }</span>
+        <span class="cov0" title="0">if strings.Contains(field, "-") </span><span class="cov0" title="0">{
+                return fmt.Sprintf("%s in range %s", name, field)
+        }</span>
+        <span class="cov0" title="0">if strings.Contains(field, ",") </span><span class="cov0" title="0">{
+                return fmt.Sprintf("%s at %s", name, field)
+        }</span>
+        <span class="cov0" title="0">if strings.Contains(field, "/") </span><span class="cov0" title="0">{
+                parts := strings.Split(field, "/")
+                if len(parts) == 2 </span><span class="cov0" title="0">{
+                        return fmt.Sprintf("every %s %s starting at %s", parts[1], name, parts[0])
+                }</span>
+        }
+        <span class="cov0" title="0">return fmt.Sprintf("%s at %s", name, field)</span>
+}
+
+// IsWithinTimeWindow checks if the current time is within a job's execution window
+func (p *Parser) IsWithinTimeWindow(expression string, window time.Duration) (bool, error) <span class="cov0" title="0">{
+        nextRun, err := p.GetNextRun(expression, time.Now())
+        if err != nil </span><span class="cov0" title="0">{
+                return false, err
+        }</span>
+
+        <span class="cov0" title="0">timeUntilNext := time.Until(nextRun)
+        return timeUntilNext &lt;= window &amp;&amp; timeUntilNext &gt;= 0, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file5" style="display: none">package cron
+
+import (
+        "fmt"
+        "strconv"
+        "strings"
+)
+
+// ValidateField validates a single CRON field
+func ValidateField(field string, min, max int, allowedNames []string) error <span class="cov8" title="1">{
+        // Handle wildcards
+        if field == "*" || field == "?" </span><span class="cov8" title="1">{
+                return nil
+        }</span>
+
+        // Handle lists (e.g., "1,3,5")
+        <span class="cov8" title="1">if strings.Contains(field, ",") </span><span class="cov8" title="1">{
+                parts := strings.Split(field, ",")
+                for _, part := range parts </span><span class="cov8" title="1">{
+                        if err := ValidateField(strings.TrimSpace(part), min, max, allowedNames); err != nil </span><span class="cov0" title="0">{
+                                return err
+                        }</span>
+                }
+                <span class="cov8" title="1">return nil</span>
+        }
+
+        // Handle ranges (e.g., "10-15")
+        <span class="cov8" title="1">if strings.Contains(field, "-") </span><span class="cov8" title="1">{
+                parts := strings.Split(field, "-")
+                if len(parts) != 2 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("invalid range format: %s", field)
+                }</span>
+
+                <span class="cov8" title="1">start := strings.TrimSpace(parts[0])
+                end := strings.TrimSpace(parts[1])
+
+                // Check if using names (e.g., MON-FRI)
+                if allowedNames != nil </span><span class="cov8" title="1">{
+                        startIdx := findNameIndex(start, allowedNames)
+                        endIdx := findNameIndex(end, allowedNames)
+                        if startIdx &gt;= 0 &amp;&amp; endIdx &gt;= 0 </span><span class="cov8" title="1">{
+                                if startIdx &gt; endIdx </span><span class="cov0" title="0">{
+                                        return fmt.Errorf("invalid range: %s-%s", start, end)
+                                }</span>
+                                <span class="cov8" title="1">return nil</span>
+                        }
+                }
+
+                // Numeric range
+                <span class="cov8" title="1">startNum, err1 := strconv.Atoi(start)
+                endNum, err2 := strconv.Atoi(end)
+                if err1 != nil || err2 != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("invalid range values: %s", field)
+                }</span>
+                <span class="cov8" title="1">if startNum &lt; min || startNum &gt; max || endNum &lt; min || endNum &gt; max </span><span class="cov0" title="0">{
+                        return fmt.Errorf("range values must be between %d and %d", min, max)
+                }</span>
+                <span class="cov8" title="1">if startNum &gt; endNum </span><span class="cov0" title="0">{
+                        return fmt.Errorf("invalid range: start (%d) &gt; end (%d)", startNum, endNum)
+                }</span>
+                <span class="cov8" title="1">return nil</span>
+        }
+
+        // Handle steps (e.g., "*/5" or "0-30/5")
+        <span class="cov8" title="1">if strings.Contains(field, "/") </span><span class="cov8" title="1">{
+                parts := strings.Split(field, "/")
+                if len(parts) != 2 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("invalid step format: %s", field)
+                }</span>
+
+                // Validate the range/start part
+                <span class="cov8" title="1">rangePart := strings.TrimSpace(parts[0])
+                if rangePart != "*" </span><span class="cov0" title="0">{
+                        if strings.Contains(rangePart, "-") </span><span class="cov0" title="0">{
+                                if err := ValidateField(rangePart, min, max, allowedNames); err != nil </span><span class="cov0" title="0">{
+                                        return err
+                                }</span>
+                        } else<span class="cov0" title="0"> {
+                                num, err := strconv.Atoi(rangePart)
+                                if err != nil || num &lt; min || num &gt; max </span><span class="cov0" title="0">{
+                                        return fmt.Errorf("invalid step start value: %s", rangePart)
+                                }</span>
+                        }
+                }
+
+                // Validate the step value
+                <span class="cov8" title="1">step, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+                if err != nil || step &lt;= 0 </span><span class="cov0" title="0">{
+                        return fmt.Errorf("step value must be a positive integer: %s", parts[1])
+                }</span>
+                <span class="cov8" title="1">return nil</span>
+        }
+
+        // Check if it's a named value (e.g., MON, JAN)
+        <span class="cov8" title="1">if allowedNames != nil </span><span class="cov8" title="1">{
+                if findNameIndex(field, allowedNames) &gt;= 0 </span><span class="cov8" title="1">{
+                        return nil
+                }</span>
+        }
+
+        // Single numeric value
+        <span class="cov8" title="1">num, err := strconv.Atoi(field)
+        if err != nil </span><span class="cov8" title="1">{
+                if allowedNames != nil </span><span class="cov8" title="1">{
+                        return fmt.Errorf("invalid value: %s (not a number or recognized name)", field)
+                }</span>
+                <span class="cov0" title="0">return fmt.Errorf("invalid numeric value: %s", field)</span>
+        }
+
+        <span class="cov8" title="1">if num &lt; min || num &gt; max </span><span class="cov8" title="1">{
+                return fmt.Errorf("value %d must be between %d and %d", num, min, max)
+        }</span>
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// findNameIndex finds the index of a name in the allowed names list (case-insensitive)
+func findNameIndex(name string, allowedNames []string) int <span class="cov8" title="1">{
+        upperName := strings.ToUpper(name)
+        for i, allowed := range allowedNames </span><span class="cov8" title="1">{
+                if strings.ToUpper(allowed) == upperName </span><span class="cov8" title="1">{
+                        return i
+                }</span>
+        }
+        <span class="cov8" title="1">return -1</span>
+}
+
+// ValidateCronExpression performs detailed validation of a 6-field CRON expression
+func ValidateCronExpression(expression string) error <span class="cov8" title="1">{
+        fields := strings.Fields(expression)
+        if len(fields) != 6 </span><span class="cov0" title="0">{
+                return fmt.Errorf("CRON expression must have exactly 6 fields (second minute hour day month weekday), got %d fields", len(fields))
+        }</span>
+
+        // Define allowed names for months and weekdays
+        <span class="cov8" title="1">monthNames := []string{"JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"}
+        weekdayNames := []string{"SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"}
+
+        // Validate each field
+        fieldSpecs := []struct {
+                name         string
+                min, max     int
+                allowedNames []string
+        }{
+                {"second", 0, 59, nil},
+                {"minute", 0, 59, nil},
+                {"hour", 0, 23, nil},
+                {"day of month", 1, 31, nil},
+                {"month", 1, 12, monthNames},
+                {"weekday", 0, 6, weekdayNames},
+        }
+
+        for i, spec := range fieldSpecs </span><span class="cov8" title="1">{
+                if err := ValidateField(fields[i], spec.min, spec.max, spec.allowedNames); err != nil </span><span class="cov8" title="1">{
+                        return fmt.Errorf("%s field: %w", spec.name, err)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file6" style="display: none">package executor
+
+import (
+        "context"
+        "io"
+        "log"
+        "net/http"
+        "sync"
+        "time"
+
+        "job-scheduler-fampay/models"
+        "job-scheduler-fampay/repository"
+)
+
+// JobExecutorConfig holds configuration for the job execution workers.
+type JobExecutorConfig struct {
+        WorkerCount    int
+        RequestTimeout time.Duration
+        MaxQueueSize   int
+}
+
+// DefaultJobExecutorConfig provides sensible defaults for the executor.
+func DefaultJobExecutorConfig() JobExecutorConfig <span class="cov0" title="0">{
+        return JobExecutorConfig{
+                WorkerCount:    4,
+                RequestTimeout: 120 * time.Second, // Increased to handle APIs that take up to 90 seconds
+                MaxQueueSize:   100,
+        }
+}</span>
+
+// JobExecutor is responsible for executing scheduled jobs.
+type JobExecutor struct {
+        config     JobExecutorConfig
+        repo       repository.JobRepository
+        httpClient *http.Client
+
+        queue chan *models.Job
+
+        startOnce sync.Once
+        stopOnce  sync.Once
+        cancel    context.CancelFunc
+        wg        sync.WaitGroup
+}
+
+// NewJobExecutor creates a new executor instance with the provided configuration.
+func NewJobExecutor(repo repository.JobRepository, cfg JobExecutorConfig) *JobExecutor <span class="cov0" title="0">{
+        if cfg.WorkerCount &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.WorkerCount = DefaultJobExecutorConfig().WorkerCount
+        }</span>
+        <span class="cov0" title="0">if cfg.RequestTimeout &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.RequestTimeout = DefaultJobExecutorConfig().RequestTimeout
+        }</span>
+        <span class="cov0" title="0">if cfg.MaxQueueSize &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.MaxQueueSize = DefaultJobExecutorConfig().MaxQueueSize
+        }</span>
+
+        <span class="cov0" title="0">return &amp;JobExecutor{
+                config: cfg,
+                repo:   repo,
+                httpClient: &amp;http.Client{
+                        Timeout: cfg.RequestTimeout,
+                },
+                queue: make(chan *models.Job, cfg.MaxQueueSize),
+        }</span>
+}
+
+// Start launches the worker pool. It is safe to call multiple times; subsequent calls are no-ops.
+func (e *JobExecutor) Start(ctx context.Context) <span class="cov0" title="0">{
+        e.startOnce.Do(func() </span><span class="cov0" title="0">{
+                var workerCtx context.Context
+                workerCtx, e.cancel = context.WithCancel(ctx)
+
+                for i := 0; i &lt; e.config.WorkerCount; i++ </span><span class="cov0" title="0">{
+                        e.wg.Add(1)
+                        go e.runWorker(workerCtx, i)
+                }</span>
+        })
+}
+
+// Stop gracefully shuts down all workers and drains outstanding jobs.
+func (e *JobExecutor) Stop() <span class="cov0" title="0">{
+        e.stopOnce.Do(func() </span><span class="cov0" title="0">{
+                if e.cancel != nil </span><span class="cov0" title="0">{
+                        e.cancel()
+                }</span>
+                <span class="cov0" title="0">close(e.queue)
+                e.wg.Wait()</span>
+        })
+}
+
+// Submit queues a job for execution. If the executor is not started,
+// the job will block until Start is invoked or the context is canceled.
+func (e *JobExecutor) Submit(job *models.Job) <span class="cov0" title="0">{
+        if job == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+        <span class="cov0" title="0">e.queue &lt;- job</span>
+}
+
+func (e *JobExecutor) runWorker(ctx context.Context, workerID int) <span class="cov0" title="0">{
+        defer e.wg.Done()
+
+        for </span><span class="cov0" title="0">{
+                select </span>{
+                case &lt;-ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                case job, ok := &lt;-e.queue:<span class="cov0" title="0">
+                        if !ok </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                        <span class="cov0" title="0">e.executeJob(ctx, job)</span>
+                }
+        }
+}
+
+func (e *JobExecutor) executeJob(ctx context.Context, job *models.Job) <span class="cov0" title="0">{
+        if job == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">reqCtx, cancel := context.WithTimeout(ctx, e.config.RequestTimeout)
+        defer cancel()
+
+        start := time.Now()
+        req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, job.API, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("executor: build request for job %s failed: %v", job.ID, err)
+                e.recordExecutionFailure(ctx, job, time.Since(start), err.Error(), 0, "")
+                return
+        }</span>
+
+        <span class="cov0" title="0">resp, err := e.httpClient.Do(req)
+        duration := time.Since(start)
+
+        if err != nil </span><span class="cov0" title="0">{
+                log.Printf("executor: job %s http failure: %v", job.ID, err)
+                e.recordExecutionFailure(ctx, job, duration, err.Error(), 0, "")
+                return
+        }</span>
+        <span class="cov0" title="0">defer resp.Body.Close()
+
+        bodyBytes, readErr := io.ReadAll(io.LimitReader(resp.Body, 1&lt;&lt;20)) // cap to 1MB
+        if readErr != nil </span><span class="cov0" title="0">{
+                log.Printf("executor: job %s read body error: %v", job.ID, readErr)
+        }</span>
+
+        <span class="cov0" title="0">success := resp.StatusCode &gt;= http.StatusOK &amp;&amp; resp.StatusCode &lt; http.StatusMultipleChoices
+        errorMsg := ""
+        if !success </span><span class="cov0" title="0">{
+                errorMsg = http.StatusText(resp.StatusCode)
+        }</span>
+
+        <span class="cov0" title="0">execution := &amp;models.JobExecution{
+                JobID:        job.ID,
+                HTTPStatus:   resp.StatusCode,
+                ResponseTime: duration,
+                Success:      success,
+                Error:        errorMsg,
+                ResponseBody: string(bodyBytes),
+        }
+
+        completedAt := time.Now()
+        execution.CompletedAt = &amp;completedAt
+
+        if err := e.repo.CreateExecution(ctx, execution); err != nil </span><span class="cov0" title="0">{
+                log.Printf("executor: failed to record execution for job %s: %v", job.ID, err)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if err := e.repo.UpdateJobLastExecuted(ctx, job.ID, completedAt); err != nil </span><span class="cov0" title="0">{
+                log.Printf("executor: failed to update last executed for job %s: %v", job.ID, err)
+        }</span>
+}
+
+func (e *JobExecutor) recordExecutionFailure(ctx context.Context, job *models.Job, duration time.Duration, errorMsg string, status int, body string) <span class="cov0" title="0">{
+        finished := time.Now()
+        execution := &amp;models.JobExecution{
+                JobID:        job.ID,
+                HTTPStatus:   status,
+                ResponseTime: duration,
+                Success:      false,
+                Error:        errorMsg,
+                ResponseBody: body,
+                CompletedAt:  &amp;finished,
+        }
+
+        if err := e.repo.CreateExecution(ctx, execution); err != nil </span><span class="cov0" title="0">{
+                log.Printf("executor: failed to record execution failure for job %s: %v", job.ID, err)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if err := e.repo.UpdateJobLastExecuted(ctx, job.ID, finished); err != nil </span><span class="cov0" title="0">{
+                log.Printf("executor: failed to update last executed for job %s: %v", job.ID, err)
+        }</span>
+}
+</pre>
+		
+		<pre class="file" id="file7" style="display: none">package executor
+
+import (
+        "context"
+        "io"
+        "log"
+        "net"
+        "net/http"
+        "sync"
+        "time"
+
+        "job-scheduler-fampay/models"
+        "job-scheduler-fampay/repository"
+)
+
+// OptimizedJobExecutorConfig holds configuration for high-throughput job execution.
+type OptimizedJobExecutorConfig struct {
+        WorkerCount     int
+        RequestTimeout  time.Duration
+        MaxQueueSize    int
+        MaxConnsPerHost int
+        MaxIdleConns    int
+        IdleConnTimeout time.Duration
+}
+
+// DefaultOptimizedConfig provides configuration for 1000+ jobs/second.
+func DefaultOptimizedConfig() OptimizedJobExecutorConfig <span class="cov0" title="0">{
+        return OptimizedJobExecutorConfig{
+                WorkerCount:     1000, // Match target throughput
+                RequestTimeout:  120 * time.Second,
+                MaxQueueSize:    10000, // Buffer for burst traffic
+                MaxConnsPerHost: 100,   // Allow many concurrent connections per host
+                MaxIdleConns:    1000,  // Keep connections alive for reuse
+                IdleConnTimeout: 90 * time.Second,
+        }
+}</span>
+
+// OptimizedJobExecutor is optimized for high-throughput job execution.
+type OptimizedJobExecutor struct {
+        config     OptimizedJobExecutorConfig
+        repo       repository.JobRepository
+        httpClient *http.Client
+
+        queue chan *models.Job
+
+        startOnce sync.Once
+        stopOnce  sync.Once
+        cancel    context.CancelFunc
+        wg        sync.WaitGroup
+
+        // Metrics for monitoring
+        processed uint64
+        failed    uint64
+        mu        sync.RWMutex
+}
+
+// NewOptimizedJobExecutor creates an executor optimized for high throughput.
+func NewOptimizedJobExecutor(repo repository.JobRepository, cfg OptimizedJobExecutorConfig) *OptimizedJobExecutor <span class="cov0" title="0">{
+        if cfg.WorkerCount &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.WorkerCount = DefaultOptimizedConfig().WorkerCount
+        }</span>
+        <span class="cov0" title="0">if cfg.RequestTimeout &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.RequestTimeout = DefaultOptimizedConfig().RequestTimeout
+        }</span>
+        <span class="cov0" title="0">if cfg.MaxQueueSize &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.MaxQueueSize = DefaultOptimizedConfig().MaxQueueSize
+        }</span>
+        <span class="cov0" title="0">if cfg.MaxConnsPerHost &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.MaxConnsPerHost = DefaultOptimizedConfig().MaxConnsPerHost
+        }</span>
+        <span class="cov0" title="0">if cfg.MaxIdleConns &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.MaxIdleConns = DefaultOptimizedConfig().MaxIdleConns
+        }</span>
+        <span class="cov0" title="0">if cfg.IdleConnTimeout &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.IdleConnTimeout = DefaultOptimizedConfig().IdleConnTimeout
+        }</span>
+
+        // Optimized HTTP transport for high concurrency
+        <span class="cov0" title="0">transport := &amp;http.Transport{
+                Proxy: http.ProxyFromEnvironment,
+                DialContext: (&amp;net.Dialer{
+                        Timeout:   30 * time.Second,
+                        KeepAlive: 30 * time.Second,
+                }).DialContext,
+                MaxIdleConns:          cfg.MaxIdleConns,
+                MaxIdleConnsPerHost:   cfg.MaxConnsPerHost,
+                MaxConnsPerHost:       cfg.MaxConnsPerHost,
+                IdleConnTimeout:       cfg.IdleConnTimeout,
+                TLSHandshakeTimeout:   10 * time.Second,
+                ExpectContinueTimeout: 1 * time.Second,
+                DisableCompression:    true, // Reduce CPU overhead
+                ForceAttemptHTTP2:     true, // Use HTTP/2 when available
+        }
+
+        return &amp;OptimizedJobExecutor{
+                config: cfg,
+                repo:   repo,
+                httpClient: &amp;http.Client{
+                        Timeout:   cfg.RequestTimeout,
+                        Transport: transport,
+                },
+                queue: make(chan *models.Job, cfg.MaxQueueSize),
+        }</span>
+}
+
+// Start launches the worker pool.
+func (e *OptimizedJobExecutor) Start(ctx context.Context) <span class="cov0" title="0">{
+        e.startOnce.Do(func() </span><span class="cov0" title="0">{
+                var workerCtx context.Context
+                workerCtx, e.cancel = context.WithCancel(ctx)
+
+                log.Printf("Starting optimized executor with %d workers, queue size %d",
+                        e.config.WorkerCount, e.config.MaxQueueSize)
+
+                for i := 0; i &lt; e.config.WorkerCount; i++ </span><span class="cov0" title="0">{
+                        e.wg.Add(1)
+                        go e.runWorker(workerCtx, i)
+                }</span>
+
+                // Metrics reporter
+                <span class="cov0" title="0">e.wg.Add(1)
+                go e.reportMetrics(workerCtx)</span>
+        })
+}
+
+// Stop gracefully shuts down all workers.
+func (e *OptimizedJobExecutor) Stop() <span class="cov0" title="0">{
+        e.stopOnce.Do(func() </span><span class="cov0" title="0">{
+                if e.cancel != nil </span><span class="cov0" title="0">{
+                        e.cancel()
+                }</span>
+                <span class="cov0" title="0">close(e.queue)
+                e.wg.Wait()
+
+                e.mu.RLock()
+                log.Printf("Executor stopped. Processed: %d, Failed: %d", e.processed, e.failed)
+                e.mu.RUnlock()</span>
+        })
+}
+
+// Submit queues a job for execution (non-blocking with buffer).
+func (e *OptimizedJobExecutor) Submit(job *models.Job) <span class="cov0" title="0">{
+        if job == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">select </span>{
+        case e.queue &lt;- job:<span class="cov0" title="0"></span>
+                // Job queued successfully
+        default:<span class="cov0" title="0">
+                // Queue is full, log and drop (or implement backpressure)
+                log.Printf("WARNING: Job queue full, dropping job %s", job.ID)</span>
+        }
+}
+
+func (e *OptimizedJobExecutor) runWorker(ctx context.Context, workerID int) <span class="cov0" title="0">{
+        defer e.wg.Done()
+
+        for </span><span class="cov0" title="0">{
+                select </span>{
+                case &lt;-ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                case job, ok := &lt;-e.queue:<span class="cov0" title="0">
+                        if !ok </span><span class="cov0" title="0">{
+                                return
+                        }</span>
+                        <span class="cov0" title="0">e.executeJob(ctx, job)</span>
+                }
+        }
+}
+
+func (e *OptimizedJobExecutor) executeJob(ctx context.Context, job *models.Job) <span class="cov0" title="0">{
+        if job == nil </span><span class="cov0" title="0">{
+                return
+        }</span>
+
+        <span class="cov0" title="0">start := time.Now()
+
+        // Create request with timeout
+        reqCtx, cancel := context.WithTimeout(ctx, e.config.RequestTimeout)
+        defer cancel()
+
+        req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, job.API, nil)
+        if err != nil </span><span class="cov0" title="0">{
+                e.recordFailure(ctx, job, time.Since(start), err.Error(), 0)
+                return
+        }</span>
+
+        // Execute HTTP request
+        <span class="cov0" title="0">resp, err := e.httpClient.Do(req)
+        duration := time.Since(start)
+
+        if err != nil </span><span class="cov0" title="0">{
+                e.recordFailure(ctx, job, duration, err.Error(), 0)
+                return
+        }</span>
+        <span class="cov0" title="0">defer resp.Body.Close()
+
+        // Read response (limited to prevent memory issues)
+        bodyBytes, _ := io.ReadAll(io.LimitReader(resp.Body, 1&lt;&lt;20)) // 1MB limit
+
+        success := resp.StatusCode &gt;= 200 &amp;&amp; resp.StatusCode &lt; 300
+
+        // Record execution asynchronously to avoid blocking
+        go e.recordExecution(context.Background(), job, duration, resp.StatusCode, string(bodyBytes), success)
+
+        // Update metrics
+        e.mu.Lock()
+        e.processed++
+        if !success </span><span class="cov0" title="0">{
+                e.failed++
+        }</span>
+        <span class="cov0" title="0">e.mu.Unlock()</span>
+}
+
+func (e *OptimizedJobExecutor) recordExecution(ctx context.Context, job *models.Job, duration time.Duration, status int, body string, success bool) <span class="cov0" title="0">{
+        execution := &amp;models.JobExecution{
+                JobID:        job.ID,
+                HTTPStatus:   status,
+                ResponseTime: duration,
+                Success:      success,
+                ResponseBody: body,
+        }
+
+        if !success </span><span class="cov0" title="0">{
+                execution.Error = http.StatusText(status)
+        }</span>
+
+        <span class="cov0" title="0">completedAt := time.Now()
+        execution.CompletedAt = &amp;completedAt
+
+        // Best effort recording - don't block on repository operations
+        ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+        defer cancel()
+
+        if err := e.repo.CreateExecution(ctx, execution); err != nil </span><span class="cov0" title="0">{
+                log.Printf("Failed to record execution for job %s: %v", job.ID, err)
+        }</span>
+
+        <span class="cov0" title="0">if err := e.repo.UpdateJobLastExecuted(ctx, job.ID, completedAt); err != nil </span><span class="cov0" title="0">{
+                log.Printf("Failed to update last executed for job %s: %v", job.ID, err)
+        }</span>
+}
+
+func (e *OptimizedJobExecutor) recordFailure(ctx context.Context, job *models.Job, duration time.Duration, errorMsg string, status int) <span class="cov0" title="0">{
+        go e.recordExecution(context.Background(), job, duration, status, "", false)
+}</span>
+
+func (e *OptimizedJobExecutor) reportMetrics(ctx context.Context) <span class="cov0" title="0">{
+        defer e.wg.Done()
+
+        ticker := time.NewTicker(10 * time.Second)
+        defer ticker.Stop()
+
+        var lastProcessed uint64
+
+        for </span><span class="cov0" title="0">{
+                select </span>{
+                case &lt;-ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                case &lt;-ticker.C:<span class="cov0" title="0">
+                        e.mu.RLock()
+                        current := e.processed
+                        failed := e.failed
+                        e.mu.RUnlock()
+
+                        rate := float64(current-lastProcessed) / 10.0
+                        log.Printf("Executor metrics: Rate: %.1f jobs/sec, Total: %d, Failed: %d, Queue: %d/%d",
+                                rate, current, failed, len(e.queue), e.config.MaxQueueSize)
+                        lastProcessed = current</span>
+                }
+        }
+}
+
+// GetMetrics returns current executor metrics.
+func (e *OptimizedJobExecutor) GetMetrics() (processed, failed uint64, queueDepth int) <span class="cov0" title="0">{
+        e.mu.RLock()
+        defer e.mu.RUnlock()
+        return e.processed, e.failed, len(e.queue)
+}</span>
+</pre>
+		
+		<pre class="file" id="file8" style="display: none">package main
+
+import (
+        "context"
+        "flag"
+        "fmt"
+        "log"
+        "os"
+        "os/signal"
+        "strconv"
+        "syscall"
+        "time"
+
+        "job-scheduler-fampay/api"
+        "job-scheduler-fampay/executor"
+        "job-scheduler-fampay/repository"
+        "job-scheduler-fampay/scheduler"
+)
+
+const (
+        defaultPort            = "8080"
+        defaultWorkerCount     = 1000
+        defaultLogFile         = "scheduler.log"
+        defaultShutdownTimeout = 15 * time.Second
+)
+
+type Config struct {
+        Port        string
+        WorkerCount int
+        LogFile     string
+        Shutdown    time.Duration
+        Optimized   bool
+}
+
+func parseFlags() Config <span class="cov0" title="0">{
+        port := flag.String("port", defaultPort, "HTTP port to listen on")
+        workers := flag.Int("workers", defaultWorkerCount, "Number of worker goroutines")
+        logFile := flag.String("logfile", defaultLogFile, "Path to log file")
+        optimized := flag.Bool("optimized", false, "Use optimized executor for high throughput (1000+ jobs/sec)")
+
+        flag.Parse()
+
+        if *workers &lt;= 0 </span><span class="cov0" title="0">{
+                log.Fatalf("workers must be greater than zero; got %d", *workers)
+        }</span>
+        <span class="cov0" title="0">if *logFile == "" </span><span class="cov0" title="0">{
+                log.Fatalf("log file name must not be empty")
+        }</span>
+
+        <span class="cov0" title="0">return Config{
+                Port:        *port,
+                WorkerCount: *workers,
+                LogFile:     *logFile,
+                Shutdown:    defaultShutdownTimeout,
+                Optimized:   *optimized,
+        }</span>
+}
+
+func setupLogger(path string) (*os.File, *log.Logger, error) <span class="cov0" title="0">{
+        file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, nil, fmt.Errorf("open log file: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">logger := log.New(file, "", log.LstdFlags|log.Lshortfile)
+        return file, logger, nil</span>
+}
+
+func run(ctx context.Context, cfg Config, logger *log.Logger) error <span class="cov0" title="0">{
+        repo := repository.NewMemoryRepository()
+
+        // Choose executor based on optimization flag
+        var jobExecutor scheduler.Executor
+
+        if cfg.Optimized </span><span class="cov0" title="0">{
+                logger.Printf("Using OPTIMIZED executor for high throughput")
+                optCfg := executor.DefaultOptimizedConfig()
+                optCfg.WorkerCount = cfg.WorkerCount
+
+                // Allow configuring timeout via environment variable
+                if timeoutStr := os.Getenv("JOB_TIMEOUT_SECONDS"); timeoutStr != "" </span><span class="cov0" title="0">{
+                        if timeout, err := strconv.Atoi(timeoutStr); err == nil &amp;&amp; timeout &gt; 0 </span><span class="cov0" title="0">{
+                                optCfg.RequestTimeout = time.Duration(timeout) * time.Second
+                                logger.Printf("Using custom job timeout: %v seconds", timeout)
+                        }</span>
+                }
+
+                <span class="cov0" title="0">optimizedExec := executor.NewOptimizedJobExecutor(repo, optCfg)
+                optimizedExec.Start(ctx)
+                defer optimizedExec.Stop()
+                jobExecutor = optimizedExec</span>
+        } else<span class="cov0" title="0"> {
+                logger.Printf("Using standard executor")
+                execCfg := executor.DefaultJobExecutorConfig()
+                execCfg.WorkerCount = cfg.WorkerCount
+
+                // Allow configuring timeout via environment variable
+                if timeoutStr := os.Getenv("JOB_TIMEOUT_SECONDS"); timeoutStr != "" </span><span class="cov0" title="0">{
+                        if timeout, err := strconv.Atoi(timeoutStr); err == nil &amp;&amp; timeout &gt; 0 </span><span class="cov0" title="0">{
+                                execCfg.RequestTimeout = time.Duration(timeout) * time.Second
+                                logger.Printf("Using custom job timeout: %v seconds", timeout)
+                        }</span>
+                }
+
+                <span class="cov0" title="0">standardExec := executor.NewJobExecutor(repo, execCfg)
+                standardExec.Start(ctx)
+                defer standardExec.Stop()
+                jobExecutor = standardExec</span>
+        }
+
+        <span class="cov0" title="0">schedCfg := scheduler.DefaultConfig()
+        jobScheduler := scheduler.New(repo, jobExecutor, logger, schedCfg)
+        jobScheduler.Start(ctx)
+        defer jobScheduler.Stop()
+
+        server := api.NewServer(cfg.Port, logger, repo)
+
+        errCh := make(chan error, 1)
+        go func() </span><span class="cov0" title="0">{
+                logger.Printf("HTTP server starting on port %s", cfg.Port)
+                errCh &lt;- server.Start()
+        }</span>()
+
+        <span class="cov0" title="0">select </span>{
+        case &lt;-ctx.Done():<span class="cov0" title="0">
+                logger.Println("received shutdown signal (SIGINT/SIGTERM)")</span>
+        case err := &lt;-errCh:<span class="cov0" title="0">
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("server error: %w", err)
+                }</span>
+                <span class="cov0" title="0">return nil</span>
+        }
+
+        <span class="cov0" title="0">logger.Printf("initiating graceful shutdown (timeout: %v)", cfg.Shutdown)
+        shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.Shutdown)
+        defer cancel()
+
+        if err := server.Shutdown(shutdownCtx); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("shutdown API server: %w", err)
+        }</span>
+
+        // Wait for server goroutine to finish
+        <span class="cov0" title="0">if err := &lt;-errCh; err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("API server exited with error: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">logger.Println("graceful shutdown completed successfully")
+        return nil</span>
+}
+
+func main() <span class="cov0" title="0">{
+        cfg := parseFlags()
+
+        logFile, logger, err := setupLogger(cfg.LogFile)
+        if err != nil </span><span class="cov0" title="0">{
+                log.Fatalf("failed to configure logger: %v", err)
+        }</span>
+        <span class="cov0" title="0">defer logFile.Close()
+
+        logger.Printf("=== Job Scheduler Service Starting ===")
+        logger.Printf("Configuration: port=%s, workers=%d, logfile=%s, optimized=%v",
+                cfg.Port, cfg.WorkerCount, cfg.LogFile, cfg.Optimized)
+        logger.Printf("Process ID: %d", os.Getpid())
+        logger.Printf("Registering signal handlers for graceful shutdown (SIGINT, SIGTERM)")
+
+        ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+        defer stop()
+
+        if err := run(ctx, cfg, logger); err != nil </span><span class="cov0" title="0">{
+                logger.Fatalf("service stopped with error: %v", err)
+        }</span>
+
+        <span class="cov0" title="0">logger.Println("=== Job Scheduler Service Stopped Successfully ===")</span>
+}
+</pre>
+		
+		<pre class="file" id="file9" style="display: none">package repository
+
+import (
+        "context"
+        "fmt"
+        "sync"
+        "time"
+
+        "job-scheduler-fampay/models"
+)
+
+// MemoryRepository is an in-memory implementation of JobRepository
+type MemoryRepository struct {
+        mu         sync.RWMutex
+        jobs       map[string]*models.Job
+        executions map[string]*models.JobExecution
+        jobExecMap map[string][]string // jobID -&gt; executionIDs
+        idCounter  int64
+}
+
+// NewMemoryRepository creates a new in-memory repository
+func NewMemoryRepository() *MemoryRepository <span class="cov8" title="1">{
+        return &amp;MemoryRepository{
+                jobs:       make(map[string]*models.Job),
+                executions: make(map[string]*models.JobExecution),
+                jobExecMap: make(map[string][]string),
+                idCounter:  1,
+        }
+}</span>
+
+// generateID generates a unique ID. Caller must hold r.mu.
+func (r *MemoryRepository) generateID(prefix string) string <span class="cov8" title="1">{
+        id := fmt.Sprintf("%s_%d_%d", prefix, time.Now().UnixNano(), r.idCounter)
+        r.idCounter++
+        return id
+}</span>
+
+// CreateJob creates a new job
+func (r *MemoryRepository) CreateJob(ctx context.Context, job *models.Job) error <span class="cov8" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        if job.ID == "" </span><span class="cov8" title="1">{
+                job.ID = r.generateID("job")
+        }</span>
+
+        <span class="cov8" title="1">if _, exists := r.jobs[job.ID]; exists </span><span class="cov8" title="1">{
+                return fmt.Errorf("job with ID %s already exists", job.ID)
+        }</span>
+
+        <span class="cov8" title="1">now := time.Now()
+        job.CreatedAt = now
+        job.UpdatedAt = now
+        job.Status = models.StatusActive
+
+        r.jobs[job.ID] = job
+        r.jobExecMap[job.ID] = []string{}
+
+        return nil</span>
+}
+
+// GetJob retrieves a job by ID
+func (r *MemoryRepository) GetJob(ctx context.Context, jobID string) (*models.Job, error) <span class="cov8" title="1">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        job, exists := r.jobs[jobID]
+        if !exists </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("job not found: %s", jobID)
+        }</span>
+
+        <span class="cov8" title="1">return cloneJob(job), nil</span>
+}
+
+// GetAllJobs retrieves all jobs with pagination and optional status filter
+func (r *MemoryRepository) GetAllJobs(ctx context.Context, limit, offset int, status *models.JobStatus) ([]*models.Job, int, error) <span class="cov8" title="1">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        var filtered []*models.Job
+        for _, job := range r.jobs </span><span class="cov8" title="1">{
+                if status == nil || job.Status == *status </span><span class="cov8" title="1">{
+                        filtered = append(filtered, cloneJob(job))
+                }</span>
+        }
+
+        <span class="cov8" title="1">total := len(filtered)
+
+        // Apply pagination
+        start := offset
+        if start &gt; len(filtered) </span><span class="cov0" title="0">{
+                start = len(filtered)
+        }</span>
+
+        <span class="cov8" title="1">end := start + limit
+        if end &gt; len(filtered) </span><span class="cov8" title="1">{
+                end = len(filtered)
+        }</span>
+
+        <span class="cov8" title="1">return filtered[start:end], total, nil</span>
+}
+
+func cloneJob(job *models.Job) *models.Job <span class="cov8" title="1">{
+        if job == nil </span><span class="cov0" title="0">{
+                return nil
+        }</span>
+
+        <span class="cov8" title="1">jobCopy := *job
+
+        if job.Metadata != nil </span><span class="cov8" title="1">{
+                metaCopy := make(map[string]interface{}, len(job.Metadata))
+                for k, v := range job.Metadata </span><span class="cov8" title="1">{
+                        metaCopy[k] = v
+                }</span>
+                <span class="cov8" title="1">jobCopy.Metadata = metaCopy</span>
+        }
+
+        <span class="cov8" title="1">if job.NextRun != nil </span><span class="cov8" title="1">{
+                nextRunCopy := *job.NextRun
+                jobCopy.NextRun = &amp;nextRunCopy
+        }</span>
+
+        <span class="cov8" title="1">if job.LastExecuted != nil </span><span class="cov8" title="1">{
+                lastExecutedCopy := *job.LastExecuted
+                jobCopy.LastExecuted = &amp;lastExecutedCopy
+        }</span>
+
+        <span class="cov8" title="1">return &amp;jobCopy</span>
+}
+
+// UpdateJob updates a job's fields
+func (r *MemoryRepository) UpdateJob(ctx context.Context, jobID string, updates map[string]interface{}) error <span class="cov8" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        job, exists := r.jobs[jobID]
+        if !exists </span><span class="cov8" title="1">{
+                return fmt.Errorf("job not found: %s", jobID)
+        }</span>
+
+        // Apply updates
+        <span class="cov8" title="1">for key, value := range updates </span><span class="cov8" title="1">{
+                switch key </span>{
+                case "schedule":<span class="cov8" title="1">
+                        if v, ok := value.(string); ok </span><span class="cov8" title="1">{
+                                job.Schedule = v
+                        }</span>
+                case "api":<span class="cov8" title="1">
+                        if v, ok := value.(string); ok </span><span class="cov8" title="1">{
+                                job.API = v
+                        }</span>
+                case "type":<span class="cov8" title="1">
+                        if v, ok := value.(models.JobType); ok </span><span class="cov8" title="1">{
+                                job.Type = v
+                        }</span>
+                case "status":<span class="cov8" title="1">
+                        if v, ok := value.(models.JobStatus); ok </span><span class="cov8" title="1">{
+                                job.Status = v
+                        }</span>
+                case "metadata":<span class="cov8" title="1">
+                        if v, ok := value.(map[string]interface{}); ok </span><span class="cov8" title="1">{
+                                job.Metadata = v
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">job.UpdatedAt = time.Now()
+        return nil</span>
+}
+
+// DeleteJob soft deletes a job
+func (r *MemoryRepository) DeleteJob(ctx context.Context, jobID string) error <span class="cov8" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        job, exists := r.jobs[jobID]
+        if !exists </span><span class="cov8" title="1">{
+                return fmt.Errorf("job not found: %s", jobID)
+        }</span>
+
+        <span class="cov8" title="1">job.Status = models.StatusDeleted
+        job.UpdatedAt = time.Now()
+
+        return nil</span>
+}
+
+// CreateExecution creates a new job execution record
+func (r *MemoryRepository) CreateExecution(ctx context.Context, execution *models.JobExecution) error <span class="cov8" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        if execution.ID == "" </span><span class="cov8" title="1">{
+                execution.ID = r.generateID("exec")
+        }</span>
+
+        // Verify job exists
+        <span class="cov8" title="1">if _, exists := r.jobs[execution.JobID]; !exists </span><span class="cov8" title="1">{
+                return fmt.Errorf("job not found: %s", execution.JobID)
+        }</span>
+
+        <span class="cov8" title="1">execution.ExecutedAt = time.Now()
+        r.executions[execution.ID] = execution
+        r.jobExecMap[execution.JobID] = append(r.jobExecMap[execution.JobID], execution.ID)
+
+        return nil</span>
+}
+
+// GetJobExecutions retrieves executions for a job
+func (r *MemoryRepository) GetJobExecutions(ctx context.Context, jobID string, limit, offset int) ([]*models.JobExecution, int, error) <span class="cov8" title="1">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        execIDs, exists := r.jobExecMap[jobID]
+        if !exists </span><span class="cov8" title="1">{
+                return nil, 0, fmt.Errorf("job not found: %s", jobID)
+        }</span>
+
+        <span class="cov8" title="1">total := len(execIDs)
+
+        // Apply pagination
+        start := offset
+        if start &gt; len(execIDs) </span><span class="cov8" title="1">{
+                start = len(execIDs)
+        }</span>
+
+        <span class="cov8" title="1">end := start + limit
+        if end &gt; len(execIDs) </span><span class="cov8" title="1">{
+                end = len(execIDs)
+        }</span>
+
+        // Get executions in reverse order (newest first)
+        <span class="cov8" title="1">var result []*models.JobExecution
+        for i := len(execIDs) - 1 - start; i &gt;= len(execIDs)-end &amp;&amp; i &gt;= 0; i-- </span><span class="cov8" title="1">{
+                if exec, ok := r.executions[execIDs[i]]; ok </span><span class="cov8" title="1">{
+                        execCopy := *exec
+                        result = append(result, &amp;execCopy)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return result, total, nil</span>
+}
+
+// UpdateExecution updates an execution record
+func (r *MemoryRepository) UpdateExecution(ctx context.Context, executionID string, updates map[string]interface{}) error <span class="cov8" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        exec, exists := r.executions[executionID]
+        if !exists </span><span class="cov8" title="1">{
+                return fmt.Errorf("execution not found: %s", executionID)
+        }</span>
+
+        // Apply updates
+        <span class="cov8" title="1">for key, value := range updates </span><span class="cov8" title="1">{
+                switch key </span>{
+                case "completed_at":<span class="cov8" title="1">
+                        if v, ok := value.(time.Time); ok </span><span class="cov8" title="1">{
+                                exec.CompletedAt = &amp;v
+                        }</span>
+                case "http_status":<span class="cov8" title="1">
+                        if v, ok := value.(int); ok </span><span class="cov8" title="1">{
+                                exec.HTTPStatus = v
+                        }</span>
+                case "response_time":<span class="cov8" title="1">
+                        if v, ok := value.(time.Duration); ok </span><span class="cov8" title="1">{
+                                exec.ResponseTime = v
+                        }</span>
+                case "success":<span class="cov8" title="1">
+                        if v, ok := value.(bool); ok </span><span class="cov8" title="1">{
+                                exec.Success = v
+                        }</span>
+                case "error":<span class="cov8" title="1">
+                        if v, ok := value.(string); ok </span><span class="cov8" title="1">{
+                                exec.Error = v
+                        }</span>
+                case "response_body":<span class="cov8" title="1">
+                        if v, ok := value.(string); ok </span><span class="cov8" title="1">{
+                                exec.ResponseBody = v
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">return nil</span>
+}
+
+// GetJobStats calculates statistics for a job
+func (r *MemoryRepository) GetJobStats(ctx context.Context, jobID string) (*models.JobStats, error) <span class="cov8" title="1">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        job, exists := r.jobs[jobID]
+        if !exists </span><span class="cov8" title="1">{
+                return nil, fmt.Errorf("job not found: %s", jobID)
+        }</span>
+
+        <span class="cov8" title="1">execIDs := r.jobExecMap[jobID]
+        stats := &amp;models.JobStats{
+                JobID:             jobID,
+                TotalExecutions:   int64(len(execIDs)),
+                NextScheduledTime: job.NextRun,
+        }
+
+        var totalResponseTime time.Duration
+        for _, execID := range execIDs </span><span class="cov8" title="1">{
+                if exec, ok := r.executions[execID]; ok </span><span class="cov8" title="1">{
+                        if exec.Success </span><span class="cov8" title="1">{
+                                stats.SuccessfulExecutions++
+                        }</span> else<span class="cov8" title="1"> {
+                                stats.FailedExecutions++
+                        }</span>
+                        <span class="cov8" title="1">totalResponseTime += exec.ResponseTime
+
+                        // Track last execution time
+                        if stats.LastExecutionTime == nil || exec.ExecutedAt.After(*stats.LastExecutionTime) </span><span class="cov8" title="1">{
+                                stats.LastExecutionTime = &amp;exec.ExecutedAt
+                        }</span>
+                }
+        }
+
+        <span class="cov8" title="1">if stats.TotalExecutions &gt; 0 </span><span class="cov8" title="1">{
+                stats.AverageResponseTime = totalResponseTime / time.Duration(stats.TotalExecutions)
+                stats.UptimePercentage = float64(stats.SuccessfulExecutions) / float64(stats.TotalExecutions) * 100
+        }</span>
+
+        <span class="cov8" title="1">return stats, nil</span>
+}
+
+// GetSchedulerStats calculates overall scheduler statistics
+func (r *MemoryRepository) GetSchedulerStats(ctx context.Context, from, to time.Time) (map[string]interface{}, error) <span class="cov8" title="1">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        stats := map[string]interface{}{
+                "total_jobs":        0,
+                "active_jobs":       0,
+                "inactive_jobs":     0,
+                "deleted_jobs":      0,
+                "total_executions":  0,
+                "successful_runs":   0,
+                "failed_runs":       0,
+                "avg_response_time": time.Duration(0),
+                "period_start":      from,
+                "period_end":        to,
+        }
+
+        activeJobs := 0
+        inactiveJobs := 0
+        deletedJobs := 0
+
+        for _, job := range r.jobs </span><span class="cov8" title="1">{
+                switch job.Status </span>{
+                case models.StatusActive:<span class="cov8" title="1">
+                        activeJobs++</span>
+                case models.StatusInactive:<span class="cov8" title="1">
+                        inactiveJobs++</span>
+                case models.StatusDeleted:<span class="cov8" title="1">
+                        deletedJobs++</span>
+                }
+        }
+
+        <span class="cov8" title="1">stats["total_jobs"] = len(r.jobs)
+        stats["active_jobs"] = activeJobs
+        stats["inactive_jobs"] = inactiveJobs
+        stats["deleted_jobs"] = deletedJobs
+
+        // Calculate execution stats within time range
+        totalExecs := 0
+        successfulExecs := 0
+        failedExecs := 0
+        var totalResponseTime time.Duration
+
+        for _, exec := range r.executions </span><span class="cov8" title="1">{
+                if exec.ExecutedAt.After(from) &amp;&amp; exec.ExecutedAt.Before(to) </span><span class="cov8" title="1">{
+                        totalExecs++
+                        if exec.Success </span><span class="cov8" title="1">{
+                                successfulExecs++
+                        }</span> else<span class="cov8" title="1"> {
+                                failedExecs++
+                        }</span>
+                        <span class="cov8" title="1">totalResponseTime += exec.ResponseTime</span>
+                }
+        }
+
+        <span class="cov8" title="1">stats["total_executions"] = totalExecs
+        stats["successful_runs"] = successfulExecs
+        stats["failed_runs"] = failedExecs
+
+        if totalExecs &gt; 0 </span><span class="cov8" title="1">{
+                stats["avg_response_time"] = totalResponseTime / time.Duration(totalExecs)
+                stats["success_rate"] = float64(successfulExecs) / float64(totalExecs) * 100
+        }</span>
+
+        <span class="cov8" title="1">return stats, nil</span>
+}
+
+// GetActiveJobs retrieves all active jobs for scheduling
+func (r *MemoryRepository) GetActiveJobs(ctx context.Context) ([]*models.Job, error) <span class="cov8" title="1">{
+        r.mu.RLock()
+        defer r.mu.RUnlock()
+
+        var activeJobs []*models.Job
+        for _, job := range r.jobs </span><span class="cov8" title="1">{
+                if job.Status == models.StatusActive </span><span class="cov8" title="1">{
+                        jobCopy := *job
+                        activeJobs = append(activeJobs, &amp;jobCopy)
+                }</span>
+        }
+
+        <span class="cov8" title="1">return activeJobs, nil</span>
+}
+
+// UpdateJobNextRun updates the next run time for a job
+func (r *MemoryRepository) UpdateJobNextRun(ctx context.Context, jobID string, nextRun time.Time) error <span class="cov8" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        job, exists := r.jobs[jobID]
+        if !exists </span><span class="cov8" title="1">{
+                return fmt.Errorf("job not found: %s", jobID)
+        }</span>
+
+        <span class="cov8" title="1">job.NextRun = &amp;nextRun
+        job.UpdatedAt = time.Now()
+
+        return nil</span>
+}
+
+// UpdateJobLastExecuted updates the last execution time for a job
+func (r *MemoryRepository) UpdateJobLastExecuted(ctx context.Context, jobID string, lastExecuted time.Time) error <span class="cov8" title="1">{
+        r.mu.Lock()
+        defer r.mu.Unlock()
+
+        job, exists := r.jobs[jobID]
+        if !exists </span><span class="cov8" title="1">{
+                return fmt.Errorf("job not found: %s", jobID)
+        }</span>
+
+        <span class="cov8" title="1">job.LastExecuted = &amp;lastExecuted
+        job.UpdatedAt = time.Now()
+
+        return nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file10" style="display: none">package scheduler
+
+import (
+        "context"
+        "log"
+        "sync"
+        "time"
+
+        "job-scheduler-fampay/cron"
+        "job-scheduler-fampay/models"
+        "job-scheduler-fampay/repository"
+)
+
+// Executor defines the minimal interface required from a job executor.
+type Executor interface {
+        Submit(job *models.Job)
+}
+
+// Config contains tunable parameters for the scheduler loop.
+type Config struct {
+        PollInterval time.Duration
+}
+
+// DefaultConfig returns sane defaults for scheduler operation.
+func DefaultConfig() Config <span class="cov0" title="0">{
+        return Config{
+                PollInterval: 1 * time.Second, // Reduced from 5s to 1s for lower latency
+        }
+}</span>
+
+// Scheduler orchestrates polling for due jobs and handing them to an executor.
+type Scheduler struct {
+        config   Config
+        repo     repository.JobRepository
+        parser   *cron.Parser
+        executor Executor
+        logger   *log.Logger
+
+        startOnce sync.Once
+        stopOnce  sync.Once
+        cancel    context.CancelFunc
+        wg        sync.WaitGroup
+}
+
+// New creates a new scheduler instance.
+func New(repo repository.JobRepository, executor Executor, logger *log.Logger, cfg Config) *Scheduler <span class="cov0" title="0">{
+        if cfg.PollInterval &lt;= 0 </span><span class="cov0" title="0">{
+                cfg.PollInterval = DefaultConfig().PollInterval
+        }</span>
+        <span class="cov0" title="0">if logger == nil </span><span class="cov0" title="0">{
+                logger = log.Default()
+        }</span>
+
+        <span class="cov0" title="0">return &amp;Scheduler{
+                config:   cfg,
+                repo:     repo,
+                parser:   cron.NewParser(),
+                executor: executor,
+                logger:   logger,
+        }</span>
+}
+
+// Start launches the scheduler loop. Subsequent calls are no-ops.
+func (s *Scheduler) Start(ctx context.Context) <span class="cov0" title="0">{
+        s.startOnce.Do(func() </span><span class="cov0" title="0">{
+                var runCtx context.Context
+                runCtx, s.cancel = context.WithCancel(ctx)
+                s.wg.Add(1)
+                go s.run(runCtx)
+        }</span>)
+}
+
+// Stop requests shutdown of the scheduler loop and waits for completion.
+func (s *Scheduler) Stop() <span class="cov0" title="0">{
+        s.stopOnce.Do(func() </span><span class="cov0" title="0">{
+                if s.cancel != nil </span><span class="cov0" title="0">{
+                        s.cancel()
+                }</span>
+                <span class="cov0" title="0">s.wg.Wait()</span>
+        })
+}
+
+func (s *Scheduler) run(ctx context.Context) <span class="cov0" title="0">{
+        defer s.wg.Done()
+        ticker := time.NewTicker(s.config.PollInterval)
+        defer ticker.Stop()
+
+        // Initial sweep immediately.
+        s.dispatchDueJobs(ctx)
+
+        for </span><span class="cov0" title="0">{
+                select </span>{
+                case &lt;-ctx.Done():<span class="cov0" title="0">
+                        return</span>
+                case &lt;-ticker.C:<span class="cov0" title="0">
+                        s.dispatchDueJobs(ctx)</span>
+                }
+        }
+}
+
+func (s *Scheduler) dispatchDueJobs(ctx context.Context) <span class="cov0" title="0">{
+        jobs, err := s.repo.GetActiveJobs(ctx)
+        if err != nil </span><span class="cov0" title="0">{
+                s.logger.Printf("scheduler: failed to load active jobs: %v", err)
+                return
+        }</span>
+
+        <span class="cov0" title="0">now := time.Now()
+        var dueJobs []*models.Job
+
+        // First pass: collect all due jobs
+        for _, job := range jobs </span><span class="cov0" title="0">{
+                if job == nil </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">if job.NextRun == nil || now.Before(*job.NextRun) </span><span class="cov0" title="0">{
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">dueJobs = append(dueJobs, job)</span>
+        }
+
+        // Submit all due jobs immediately to minimize delay
+        <span class="cov0" title="0">for _, job := range dueJobs </span><span class="cov0" title="0">{
+                s.executor.Submit(job)
+                s.logger.Printf("scheduler: dispatched job %s (was due at %v, dispatched at %v)",
+                        job.ID, job.NextRun, now)
+        }</span>
+
+        // Update next run times after submission to avoid blocking execution
+        <span class="cov0" title="0">for _, job := range dueJobs </span><span class="cov0" title="0">{
+                nextRun, err := s.parser.GetNextRun(job.Schedule, now)
+                if err != nil </span><span class="cov0" title="0">{
+                        s.logger.Printf("scheduler: failed to compute next run for job %s: %v", job.ID, err)
+                        continue</span>
+                }
+
+                <span class="cov0" title="0">if err := s.repo.UpdateJobNextRun(ctx, job.ID, nextRun); err != nil </span><span class="cov0" title="0">{
+                        s.logger.Printf("scheduler: failed to update next run for job %s: %v", job.ID, err)
+                }</span>
+        }
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
