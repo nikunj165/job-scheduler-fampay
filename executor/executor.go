@@ -8,6 +8,7 @@ import (
 	"sync"
 	"time"
 
+	"job-scheduler-fampay/metrics"
 	"job-scheduler-fampay/models"
 	"job-scheduler-fampay/repository"
 )
@@ -122,6 +123,9 @@ func (e *JobExecutor) executeJob(ctx context.Context, job *models.Job) {
 	defer cancel()
 
 	start := time.Now()
+	
+	// Update queue depth metric
+	metrics.ExecutorQueueDepth.Set(float64(len(e.queue)))
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, job.API, nil)
 	if err != nil {
 		log.Printf("executor: build request for job %s failed: %v", job.ID, err)
@@ -149,6 +153,15 @@ func (e *JobExecutor) executeJob(ctx context.Context, job *models.Job) {
 	if !success {
 		errorMsg = http.StatusText(resp.StatusCode)
 	}
+
+	// Track execution metrics
+	if success {
+		metrics.JobExecutionsTotal.WithLabelValues("success").Inc()
+	} else {
+		metrics.JobExecutionsTotal.WithLabelValues("failure").Inc()
+	}
+	metrics.JobExecutionDuration.Observe(duration.Seconds())
+	metrics.JobExecutionResponseTime.Observe(float64(duration.Milliseconds()))
 
 	execution := &models.JobExecution{
 		JobID:        job.ID,

@@ -1,0 +1,38 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'job-scheduler'
+    environment: 'production'
+
+# Alertmanager configuration (optional)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets: ['alertmanager:9093']
+
+# Load rules once and periodically evaluate them
+# rule_files:
+#   - "alerts/*.yml"
+
+scrape_configs:
+  # Job scheduler metrics
+  - job_name: 'job-scheduler'
+    static_configs:
+      - targets: ['scheduler:8080']
+        labels:
+          instance: 'scheduler-standard'
+          service: 'job-scheduler'
+
+  - job_name: 'job-scheduler-optimized'
+    static_configs:
+      - targets: ['scheduler-optimized:8080']
+        labels:
+          instance: 'scheduler-optimized'
+          service: 'job-scheduler'
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+

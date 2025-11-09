@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"job-scheduler-fampay/cron"
+	"job-scheduler-fampay/metrics"
 	"job-scheduler-fampay/models"
 	"job-scheduler-fampay/repository"
 )
@@ -99,6 +100,12 @@ func (s *Scheduler) run(ctx context.Context) {
 }
 
 func (s *Scheduler) dispatchDueJobs(ctx context.Context) {
+	start := time.Now()
+	defer func() {
+		metrics.SchedulerPollsTotal.Inc()
+		metrics.SchedulerPollDuration.Observe(time.Since(start).Seconds())
+	}()
+
 	jobs, err := s.repo.GetActiveJobs(ctx)
 	if err != nil {
 		s.logger.Printf("scheduler: failed to load active jobs: %v", err)
@@ -126,6 +133,7 @@ func (s *Scheduler) dispatchDueJobs(ctx context.Context) {
 		s.executor.Submit(job)
 		s.logger.Printf("scheduler: dispatched job %s (was due at %v, dispatched at %v)",
 			job.ID, job.NextRun, now)
+		metrics.SchedulerJobsDispatchedTotal.Inc()
 	}
 
 	// Update next run times after submission to avoid blocking execution

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 const (
@@ -38,10 +39,14 @@ func NewRouter(handler *Handler, opts RouterOptions) *gin.Engine {
 
 	// Apply custom middleware
 	router.Use(corsMiddleware())
+	router.Use(prometheusMiddleware())
 	router.Use(rateLimitMiddleware(handler.logger, opts.RateLimitRequests, opts.RateLimitWindow))
 
 	// Health check endpoint
 	router.GET("/healthz", handler.Health)
+
+	// Prometheus metrics endpoint
+	router.GET("/metrics", gin.WrapH(promhttp.Handler()))
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")

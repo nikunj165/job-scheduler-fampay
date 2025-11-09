@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"job-scheduler-fampay/cron"
+	"job-scheduler-fampay/metrics"
 	"job-scheduler-fampay/models"
 	"job-scheduler-fampay/repository"
 )
@@ -93,6 +94,8 @@ func (h *Handler) CreateJob(c *gin.Context) {
 	}
 
 	h.logger.Printf("Job created: %s", job.ID)
+	metrics.JobsCreatedTotal.Inc()
+	metrics.JobsActiveGauge.Inc()
 	c.JSON(http.StatusCreated, models.JobResponse{
 		JobID:     job.ID,
 		Message:   "Job created successfully",
@@ -215,6 +218,9 @@ func (h *Handler) DeleteJob(c *gin.Context) {
 	}
 
 	h.logger.Printf("Job deleted: %s", jobID)
+	metrics.JobsDeletedTotal.Inc()
+	metrics.JobsActiveGauge.Dec()
+
 	c.JSON(http.StatusOK, gin.H{
 		"message": "Job deleted successfully",
 		"job_id":  jobID,

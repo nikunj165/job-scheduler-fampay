@@ -59,11 +59,14 @@ go build -o job-scheduler-fampay
 ### Using Docker
 
 ```bash
-# Standard executor (default)
-docker-compose up -d scheduler
+# Start complete stack (scheduler + Prometheus + Grafana)
+docker-compose up -d
 
-# Optimized executor (high throughput)
-docker-compose --profile optimized up -d scheduler-optimized
+# Or start specific services
+docker-compose up -d scheduler prometheus grafana
+
+# Optimized executor with monitoring
+docker-compose --profile optimized up -d
 
 # View logs
 docker-compose logs -f scheduler
@@ -75,6 +78,12 @@ docker-compose down
 docker-compose build
 docker-compose up -d scheduler
 ```
+
+### Access Services
+- **Job Scheduler API**: http://localhost:8080
+- **Prometheus**: http://localhost:9090
+- **Grafana**: http://localhost:3000 (admin/admin)
+- **Metrics Endpoint**: http://localhost:8080/metrics
 
 ### Using Go Directly
 
@@ -353,7 +362,72 @@ job-scheduler-fampay/
 3. **Metrics**: Integrate Prometheus or similar monitoring
 4. **Message Queue**: Replace in-memory queue with RabbitMQ/Kafka
 
-## 📈 Monitoring
+## 📈 Monitoring & Observability
+
+### Prometheus Metrics
+
+The service exposes comprehensive metrics at `/metrics` endpoint:
+
+#### Job Metrics
+- `jobs_created_total` - Total jobs created
+- `jobs_deleted_total` - Total jobs deleted
+- `jobs_active` - Current active jobs count
+
+#### Execution Metrics
+- `job_executions_total{status}` - Total executions by status (success/failure)
+- `job_execution_duration_seconds` - Histogram of execution durations
+- `job_execution_response_time_ms` - Histogram of HTTP response times
+
+#### Scheduler Metrics
+- `scheduler_polls_total` - Total number of scheduler polls
+- `scheduler_jobs_dispatched_total` - Jobs dispatched by scheduler
+- `scheduler_poll_duration_seconds` - Scheduler poll latency
+
+#### Executor Metrics
+- `executor_queue_depth` - Current queue depth
+- `executor_workers_active` - Active worker count
+
+#### API Metrics
+- `http_requests_total{method,endpoint,status}` - HTTP request counters
+- `http_request_duration_seconds{method,endpoint}` - Request duration histogram
+- `http_rate_limit_exceeded_total` - Rate limit violations
+
+### Grafana Dashboards
+
+Access Grafana at http://localhost:3000 with credentials `admin/admin`.
+
+The pre-configured dashboard includes:
+- Real-time job creation and execution rates
+- HTTP request performance (p50, p95, p99)
+- Executor queue depth and worker utilization
+- Success vs failure rates
+- Rate limiting statistics
+
+### Quick Start with Monitoring
+
+```bash
+# Start complete observability stack
+docker-compose up -d
+
+# Wait for services to be ready
+sleep 10
+
+# Create some test jobs
+curl -X POST http://localhost:8080/api/v1/jobs \
+  -H "Content-Type: application/json" \
+  -d '{"schedule": "*/5 * * * * *", "api": "https://httpcan.org/post", "type": "ATLEAST_ONCE"}'
+
+# View metrics in Prometheus
+open http://localhost:9090
+
+# View dashboards in Grafana
+open http://localhost:3000  # Login: admin/admin
+
+# Query metrics directly
+curl http://localhost:8080/metrics
+```
+
+### Logs
 
 The service logs important events including:
 - Job creation/updates/deletions
@@ -361,7 +435,7 @@ The service logs important events including:
 - Execution results and failures
 - System errors and warnings
 
-Configure logging output with the `--logfile` flag.
+Configure logging output with the `--logfile` flag or use `docker-compose logs`.
 
 ## 🤝 Contributing
 

@@ -1,0 +1,188 @@
+{
+  "dashboard": {
+    "title": "Job Scheduler Metrics",
+    "tags": ["job-scheduler", "performance"],
+    "timezone": "browser",
+    "editable": true,
+    "refresh": "10s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active Jobs",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "jobs_active",
+          "refId": "A"
+        }],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto",
+          "orientation": "auto"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Jobs Created (Total)",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "jobs_created_total",
+          "refId": "A"
+        }],
+        "options": {
+          "colorMode": "value"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Job Execution Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [{
+          "expr": "rate(job_executions_total[1m])",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }],
+        "yaxes": [
+          {"format": "short", "label": "executions/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "HTTP Request Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [{
+          "expr": "rate(http_requests_total[1m])",
+          "legendFormat": "{{method}} {{endpoint}} ({{status}})",
+          "refId": "A"
+        }],
+        "yaxes": [
+          {"format": "short", "label": "requests/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "HTTP Request Duration (p95)",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [{
+          "expr": "histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))",
+          "legendFormat": "{{method}} {{endpoint}}",
+          "refId": "A"
+        }],
+        "yaxes": [
+          {"format": "s", "label": "duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Job Execution Response Time",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, rate(job_execution_response_time_ms_bucket[5m]))",
+            "legendFormat": "p50",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(job_execution_response_time_ms_bucket[5m]))",
+            "legendFormat": "p95",
+            "refId": "B"
+          },
+          {
+            "expr": "histogram_quantile(0.99, rate(job_execution_response_time_ms_bucket[5m]))",
+            "legendFormat": "p99",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "ms", "label": "response time"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Executor Queue Depth",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "targets": [{
+          "expr": "executor_queue_depth",
+          "legendFormat": "Queue Depth",
+          "refId": "A"
+        }],
+        "yaxes": [
+          {"format": "short", "label": "jobs"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Rate Limit Exceeded",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 24, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "rate(http_rate_limit_exceeded_total[5m])",
+          "refId": "A"
+        }],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      },
+      {
+        "id": 9,
+        "title": "Scheduler Dispatches",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 24, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "rate(scheduler_jobs_dispatched_total[1m])",
+          "refId": "A"
+        }],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      },
+      {
+        "id": 10,
+        "title": "Job Success vs Failure Rate",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 24, "w": 6, "h": 8},
+        "targets": [{
+          "expr": "job_executions_total",
+          "legendFormat": "{{status}}",
+          "refId": "A"
+        }]
+      },
+      {
+        "id": 11,
+        "title": "Repository Operations Rate",
+        "type": "graph",
+        "gridPos": {"x": 18, "y": 24, "w": 6, "h": 8},
+        "targets": [{
+          "expr": "rate(repository_operations_total[1m])",
+          "legendFormat": "{{operation}} ({{status}})",
+          "refId": "A"
+        }],
+        "yaxes": [
+          {"format": "short", "label": "ops/sec"},
+          {"format": "short"}
+        ]
+      }
+    ],
+    "schemaVersion": 36,
+    "version": 1
+  }
+}
+

@@ -3,10 +3,12 @@ package api
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"job-scheduler-fampay/metrics"
 )
 
 func corsMiddleware() gin.HandlerFunc {
@@ -46,12 +48,32 @@ func rateLimitMiddleware(logger *log.Logger, limit int, window time.Duration) gi
 
 		if !rl.Allow(clientIP) {
 			logger.Printf("rate limit exceeded for %s %s (ip=%s)", c.Request.Method, c.Request.URL.Path, clientIP)
+			metrics.HTTPRateLimitExceeded.Inc()
 			c.Header("Retry-After", rl.window.String())
 			c.AbortWithStatusJSON(http.StatusTooManyRequests, gin.H{"error": "rate limit exceeded"})
 			return
 		}
 
 		c.Next()
+	}
+}
+
+// prometheusMiddleware tracks HTTP request metrics
+func prometheusMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.FullPath()
+		if path == "" {
+			path = c.Request.URL.Path
+		}
+
+		c.Next()
+
+		duration := time.Since(start).Seconds()
+		status := strconv.Itoa(c.Writer.Status())
+
+		metrics.HTTPRequestsTotal.WithLabelValues(c.Request.Method, path, status).Inc()
+		metrics.HTTPRequestDuration.WithLabelValues(c.Request.Method, path).Observe(duration)
 	}
 }
 
